@@ -76,7 +76,7 @@ body{
 
 #list_div {
   flex: 1;
-  max-width: 300px; /* Optional: limit the width of the list_div */
+  max-width: 300px;
 }
 
 #info_div {
