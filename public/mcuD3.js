@@ -4,8 +4,8 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"; // Import D3
 let data; // Data from movie_stats.csv
 let networkDiv, infoDiv, phaseSelectorDiv, graphConfigDiv, graphDiv;
 
-// New global variable for movie selection
 let movie_selection = [];
+let selectedPhase = 1;
 
 /*----------------------
 LOAD DATA AND INITIALIZE
@@ -13,10 +13,10 @@ LOAD DATA AND INITIALIZE
 d3.csv("./public/movie_stats.csv").then(function (csvData) {
     data = csvData;
     init();
-    visualization();
 }).catch(error => {
     console.error("Error loading movie_stats.csv:", error);
 });
+
 
 /*----------------------
 INITIALIZE VIEW
@@ -38,6 +38,9 @@ function init() {
 
     // Initialize Graph Configuration
     initGraphConfig();
+
+    renderMovieList(selectedPhase);
+    drawNetworkGraph(selectedPhase);
 }
 
 /*----------------------
@@ -80,12 +83,67 @@ function initGraphConfig() {
         });
 }
 
+
+
 /*----------------------
-BEGIN VISUALIZATION
+RENDER MOVIE LIST
 ----------------------*/
-function visualization() {
-    drawNetworkGraph(); // Initial draw without any phase filter
+function renderMovieList(phase) {
+    const movieListDiv = d3.select("#movie_list_div");
+    movieListDiv.selectAll("*").remove(); // Clear existing content
+
+    // Get movies for the specific phase
+    const moviesInPhase = getMoviesByPhase(phase);
+
+    // Phase Header
+    const phaseHeader = movieListDiv.append("h3")
+        .text(`Phase ${phase}`)
+        .style("cursor", "pointer")
+        .on("click", () => togglePhaseSelection(phase));
+
+    const movieList = movieListDiv.append("ul")
+        .attr("id", `phase_${phase}_list`);
+
+    moviesInPhase.forEach(movie => {
+        movieList.append("li")
+            .text(movie)
+            .style("cursor", "pointer")
+            .on("click", () => toggleMovieSelection(movie))
+            .style("color", movie_selection.includes(movie) ? "green" : "blue");
+    });
 }
+
+function toggleMovieSelection(movie) {
+    const index = movie_selection.indexOf(movie);
+    if (index > -1) {
+        // Deselect the movie
+        movie_selection.splice(index, 1);
+    } else {
+        // Select the movie
+        movie_selection.push(movie);
+    }
+    updateNodeColors();
+    renderMovieList(selectedPhase);
+}
+function togglePhaseSelection(phase) {
+    const moviesInPhase = data.filter(d => +d.phase === phase).map(d => d.movie_title);
+    const allSelected = moviesInPhase.every(movie => movie_selection.includes(movie));
+
+    if (allSelected) {
+        // Deselect all movies in the phase
+        movie_selection = movie_selection.filter(movie => !moviesInPhase.includes(movie));
+    } else {
+        // Select all movies in the phase
+        movie_selection = Array.from(new Set([...movie_selection, ...moviesInPhase]));
+    }
+    updateNodeColors();
+    renderMovieList(selectedPhase);
+}
+function updateNodeColors() {
+    networkDiv.selectAll("circle")
+        .attr("fill", d => getNodeColor(d));
+}
+
 
 /*----------------------
 ADD PHASE SELECTOR
@@ -105,31 +163,17 @@ function addPhaseSelector() {
             .style("margin-right", "5px")
             .style("padding", "5px 10px")
             .on("click", () => {
-                // On button click, filter and update the network graph
+                selectedPhase = phase;
                 updateNetworkGraph(phase);
-                // Update Graphs based on phase filter
                 updateGraphs(phase);
             });
     });
-
-    // Add a button to reset the filter
-    phaseSelectorDiv.append("button")
-        .attr("type", "button")
-        .text("All Phases")
-        .style("margin-left", "20px")
-        .style("padding", "5px 10px")
-        .on("click", () => {
-            // Reset filter and redraw the network graph
-            drawNetworkGraph();
-            // Reset and redraw Graphs without phase filter
-            updateGraphs(null);
-        });
 }
 
 /*----------------------
 DRAW NETWORK GRAPH
 ----------------------*/
-function drawNetworkGraph(filteredPhase = null) {
+function drawNetworkGraph(filteredPhase) {
     // Remove existing SVG if any
     networkDiv.select("svg").remove();
 
@@ -149,11 +193,9 @@ function drawNetworkGraph(filteredPhase = null) {
         let filteredMovies;
 
         if (filteredPhase) {
-            // Filter movies based on the selected phase
-            filteredMovies = statsData.filter(d => +d.phase === filteredPhase).map(d => d.movie_title);
+            filteredMovies = getMoviesByPhase(filteredPhase);
         } else {
-            // If no phase filter, include all movies
-            filteredMovies = statsData.map(d => d.movie_title);
+            filteredMovies = data.map(d => d.movie_title);
         }
 
         // Filter edges to include only those in the filtered movies
@@ -306,14 +348,14 @@ UPDATE NETWORK GRAPH BASED ON PHASE
 ----------------------*/
 function updateNetworkGraph(phase) {
     drawNetworkGraph(phase);
-    // Update Graphs based on phase filter
     updateGraphs(phase);
+    renderMovieList(phase);
 }
 
 /*----------------------
 DRAW SCATTERPLOT
 ----------------------*/
-function drawScatterPlot(filteredPhase = null) {
+function drawScatterPlot(filteredPhase) {
     // Filter data based on phase
     let filteredData = data;
     if (filteredPhase) {
@@ -399,7 +441,7 @@ function drawScatterPlot(filteredPhase = null) {
 /*----------------------
 DRAW BOXPLOT
 ----------------------*/
-function drawBoxPlot(filteredPhase = null) {
+function drawBoxPlot(filteredPhase) {
     // Filter data based on phase
     let filteredData = data;
     if (filteredPhase) {
@@ -502,7 +544,7 @@ function drawBoxPlot(filteredPhase = null) {
 /*----------------------
 UPDATE GRAPHS BASED ON PHASE
 ----------------------*/
-function updateGraphs(filteredPhase = null) {
+function updateGraphs(filteredPhase) {
     // Remove existing graphs
     graphDiv.selectAll("*").remove();
 
@@ -514,13 +556,6 @@ function updateGraphs(filteredPhase = null) {
     } else if (selectedGraph === "boxplot") {
         drawBoxPlot(filteredPhase);
     }
-}
-
-/*----------------------
-HELPER FUNCTION TO CLAMP VALUES
-----------------------*/
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
 }
 
 /*----------------------
@@ -542,8 +577,16 @@ function displayMovieInfo(movie) {
 }
 
 /*----------------------
-GET NODE COLOR BASED ON SELECTION
+HELPER FUNCTIONS
 ----------------------*/
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function getMoviesByPhase(phase) {
+    return data.filter(d => +d.phase === phase).map(d => d.movie_title);
+}
+
 function getNodeColor(d) {
     if (d.group === "movie") {
         return movie_selection.includes(d.id) ? "green" : "blue";
