@@ -1,9 +1,9 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"; // Import D3
 
 // Global variables
-var data;
-var listDiv, infoDiv, selectionDiv, networkDiv;
-var form;
+let data; // Data from movie_stats.csv
+let listDiv, infoDiv, selectionDiv, networkDiv, phaseSelectorDiv;
+let form;
 
 // Load the CSV file and initialize the application
 d3.csv("./public/movie_stats.csv").then(function (csvData) {
@@ -29,6 +29,14 @@ function init() {
 
     // Create a form element to hold the checkboxes
     form = listDiv.append("form");
+
+    // Create a div for phase selector
+    phaseSelectorDiv = listDiv.append("div")
+        .attr("id", "phase_selector")
+        .style("margin-top", "20px");
+
+    // Add phase selector buttons
+    addPhaseSelector();
 }
 
 /*----------------------
@@ -36,7 +44,42 @@ BEGINNING OF VISUALIZATION
 ----------------------*/
 function visualization() {
     drawCheckboxes();
-    drawNetworkGraph();
+    drawNetworkGraph(); // Initial draw without any phase filter
+}
+
+/*----------------------
+ADD PHASE SELECTOR
+----------------------*/
+function addPhaseSelector() {
+    const phases = [1, 2, 3, 4];
+
+    phaseSelectorDiv.append("span")
+        .text("Select Phase: ")
+        .style("font-weight", "bold")
+        .style("margin-right", "10px");
+
+    phases.forEach(phase => {
+        phaseSelectorDiv.append("button")
+            .attr("type", "button")
+            .text(`Phase ${phase}`)
+            .style("margin-right", "5px")
+            .style("padding", "5px 10px")
+            .on("click", () => {
+                // On button click, filter and update the network graph
+                updateNetworkGraph(phase);
+            });
+    });
+
+    // Optionally, add a button to reset the filter
+    phaseSelectorDiv.append("button")
+        .attr("type", "button")
+        .text("All Phases")
+        .style("margin-left", "20px")
+        .style("padding", "5px 10px")
+        .on("click", () => {
+            // Reset filter and redraw the network graph
+            drawNetworkGraph();
+        });
 }
 
 /*----------------------
@@ -68,17 +111,17 @@ DISPLAY MOVIE INFO
 ----------------------*/
 function displayMovieInfo(movie) {
     infoDiv.html(`
-    <h2>${movie.movie_title}</h2>
-    <p>MCU Phase: ${movie.mcu_phase}</p>
-    <p>Release Date: ${movie.release_date}</p>
-    <p>Tomato Meter: ${movie.tomato_meter}%</p>
-    <p>Audience Score: ${movie.audience_score}%</p>
-    <p>Movie Duration: ${movie.movie_duration} minutes</p>
-    <p>Production Budget: ${movie.production_budget}</p>
-    <p>Opening Weekend: ${movie.opening_weekend}</p>
-    <p>Domestic Box Office: ${movie.domestic_box_office}</p>
-    <p>Worldwide Box Office: ${movie.worldwide_box_office}</p>
-  `);
+        <h2>${movie.movie_title}</h2>
+        <p>MCU Phase: ${movie.phase}</p>
+        <p>Release Date: ${movie.release_date}</p>
+        <p>Tomato Meter: ${movie.tomato_meter}%</p>
+        <p>Audience Score: ${movie.audience_score}%</p>
+        <p>Movie Duration: ${movie.movie_duration} minutes</p>
+        <p>Production Budget: ${movie.production_budget}</p>
+        <p>Opening Weekend: ${movie.opening_weekend}</p>
+        <p>Domestic Box Office: ${movie.domestic_box_office}</p>
+        <p>Worldwide Box Office: ${movie.worldwide_box_office}</p>
+    `);
 }
 
 /*----------------------
@@ -92,18 +135,46 @@ function updateSelectedMovies() {
 /*----------------------
 DRAW NETWORK GRAPH
 ----------------------*/
-function drawNetworkGraph() {
+function drawNetworkGraph(filteredPhase = null) {
+    // Remove existing SVG if any
+    networkDiv.select("svg").remove();
+
     // Load nodes and edges in parallel
     Promise.all([
-        d3.csv("./public/movies_characters_list.csv"),   // contains name, type
-        d3.csv("./public/movies_characters_occurences.csv") // contains movie, character
-    ]).then(([listData, edgesData]) => {
-        const nodes = listData.map(d => ({
+        d3.csv("./public/movies_characters_list.csv"),         // contains name, type
+        d3.csv("./public/movies_characters_occurences.csv"),  // contains movie, character
+        d3.csv("./public/movie_stats.csv")                     // contains movie_title, phase
+    ]).then(([listData, edgesData, statsData]) => {
+        let filteredMovies;
+
+        if (filteredPhase) {
+            // Filter movies based on the selected phase
+            filteredMovies = statsData.filter(d => +d.mcu_phase === filteredPhase).map(d => d.movie_title);
+        } else {
+            // If no phase filter, include all movies
+            filteredMovies = statsData.map(d => d.movie_title);
+        }
+
+        // Filter edges to include only those in the filtered movies
+        const filteredLinks = edgesData.filter(d => filteredMovies.includes(d.movie));
+
+        // Extract characters from the filtered links
+        const filteredCharacters = [...new Set(filteredLinks.map(d => d.character))];
+
+        // Filter nodes to include only filtered movies and characters
+        const filteredNodes = listData.filter(d => 
+            (d.type === "movie" && filteredMovies.includes(d.name)) ||
+            (d.type === "character" && filteredCharacters.includes(d.name))
+        );
+
+        // Convert listData to nodes
+        const nodes = filteredNodes.map(d => ({
             id: d.name,
             group: d.type
         }));
 
-        const links = edgesData.map(d => ({
+        // Convert edgesData to links
+        const links = filteredLinks.map(d => ({
             source: d.movie,
             target: d.character
         }));
@@ -128,11 +199,14 @@ function drawNetworkGraph() {
             .attr("height", height);
 
         const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(20))
-            // .force("charge", d3.forceManyBody().strength(-20))
+            .force("link", d3.forceLink(links).id(d => d.id).distance(10)) // Adjusted distance for spacing
+            .force("charge", d3.forceManyBody().strength(100)) // Increased charge for more separation
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collide", d3.forceCollide().radius(20).strength(1))
-            .force("gravity", d3.forceManyBody().strength(10))
+            .force("collide", d3.forceCollide()
+                .radius(d => d.group === "movie" ? 2.5 * radius : radius + 10)
+                .strength(5)
+            )
+                 // Collision to prevent overlapping
             ;
 
         const link = svg.append("g")
@@ -150,7 +224,7 @@ function drawNetworkGraph() {
             .data(nodes)
             .enter()
             .append("circle")
-            .attr("r", radius)
+            .attr("r", d => d.group === "movie" ? 2.5 * radius : radius)
             .attr("fill", d => d.group === "movie" ? "blue" : "red");
 
         node.append("title")
@@ -200,5 +274,14 @@ function drawNetworkGraph() {
                     return d.y;
                 });
         });
+    }).catch(error => {
+        console.error("Error loading CSV files:", error);
     });
+}
+
+/*----------------------
+UPDATE NETWORK GRAPH BASED ON PHASE
+----------------------*/
+function updateNetworkGraph(phase) {
+    drawNetworkGraph(phase);
 }
