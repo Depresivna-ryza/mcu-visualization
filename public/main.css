@@ -1,0 +1,92 @@
+body{
+	background:#767a83;
+	/*margin-top:50px;*/
+	font: 15px "Trebuchet MS";
+	color:#c0c0c0;
+
+}
+
+
+#map_div{
+    width:45%;
+    height:50vh;
+    /*border:1px solid red;*/
+    /*margin-right:10px;*/
+    float:left;
+}
+
+#text_div{
+    width:55%;
+    height:50vh;
+    /*border:1px solid red;*/
+    font-size: calc(2vw + 2vh);
+    float:left;
+}
+#barchart_div{
+  width:100%;
+  height:20vh;
+  /*border:1px solid red;*/
+  font-size: calc(2vw + 2vh);
+  float:left;
+}
+#heatmap_div{
+  width:100%;
+  height:27vh;
+  /*border:1px solid red;*/
+  float:left;
+}
+
+.headline, .subline{
+  display: block;
+  margin-top: 0.67em;
+  margin-bottom: 0.67em;
+  margin-left: 0;
+  margin-right: 0;
+  fill: white;
+  font-family: 'PT Sans',sans-serif;
+  opacity: 0.5;
+}
+
+.headline{
+  font-weight: bold;
+}
+
+.subline{
+  font-size: 50%;
+  font-weight: thin;
+}
+
+.label{
+  font-family: 'PT Sans',sans-serif;
+  opacity: 1;
+  font-size: 30%;
+}
+
+
+#list_div div, #info_div, #selection_div {
+  border: 1px solid black;
+  margin: 3px;
+}
+
+#side_by_side_flex {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+#list_div {
+  flex: 1;
+  max-width: 300px; /* Optional: limit the width of the list_div */
+}
+
+#info_div {
+  flex: 2;
+  text-align: left;
+}
+
+#selection_div {
+  border: 1px solid black;
+  padding: 10px;
+  margin: 5px;
+  clear: both;
+}
