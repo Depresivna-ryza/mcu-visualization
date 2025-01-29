@@ -36,8 +36,8 @@ function init() {
     infoDiv = d3.select("#info_div");
     graphConfigDiv = d3.select("#graph_config_div");
     graphDiv = d3.select("#graph_div");
-    scatterPlotDiv = graphDiv.append("div").attr("id", "scatter_plot_div").style("width", "50%").style("display", "inline-block");
-    boxPlotDiv = graphDiv.append("div").attr("id", "box_plot_div").style("width", "50%").style("display", "inline-block");
+    scatterPlotDiv = graphDiv.append("div").attr("id", "scatter_plot_div").style("width", "50%").style("vertical-align", "top").style("display", "inline-block");
+    boxPlotDiv = graphDiv.append("div").attr("id", "box_plot_div").style("width", "50%").style("vertical-align", "top").style("display", "inline-block");
 
     // Initialize Graph Configuration
     initGraphConfig();
@@ -487,44 +487,59 @@ function renderNetworkGraph() {
 DRAW SCATTERPLOT
 ----------------------*/
 function renderScatterPlot() {
+    // Clear existing SVG if any
+    scatterPlotDiv.select("svg").remove();
+
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
-    const margin = {top: 20, right: 30, bottom: 50, left: 60},
-          width = 600 - margin.left - margin.right,
-          height = 400 - margin.top - margin.bottom;
+    const margin = { top: 40, right: 40, bottom: 60, left: 60 },
+          plotWidth = 600,
+          plotHeight = 400,
+          width = plotWidth + margin.left + margin.right,
+          height = plotHeight + margin.top + margin.bottom;
 
     const svg = scatterPlotDiv.append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
+        .attr("width", width)
+        .attr("height", height)
       .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // X Scale
     const x = d3.scaleLinear()
         .domain([0, d3.max(filteredData, d => +d[scatterplotXVar]) + 10])
-        .range([0, width]);
+        .range([0, plotWidth]);
     svg.append("g")
-        .attr("transform", `translate(0,${height})`)
+        .attr("transform", `translate(0,${plotHeight})`)
         .call(d3.axisBottom(x));
+
+    // X Axis Label
     svg.append("text")             
-        .attr("transform", `translate(${width/2},${height + margin.bottom - 10})`)
-        .style("text-anchor", "middle")
+        .attr("x", plotWidth / 2 )
+        .attr("y", plotHeight + margin.bottom - 15)
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
         .text("Audience Score (%)");
 
+    // Y Scale
     const y = d3.scaleLinear()
         .domain([0, d3.max(filteredData, d => +d[scatterplotYVar]) + 10])
-        .range([height, 0]);
+        .range([plotHeight, 0]);
     svg.append("g")
         .call(d3.axisLeft(y));
+
+    // Y Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left + 15)
-        .attr("x",0 - (height / 2))
+        .attr("y", 0 - margin.left + 20)
+        .attr("x",0 - (plotHeight / 2))
         .attr("dy", "1em")
         .style("text-anchor", "middle")
+        .style("font-size", "12px")
         .text("Critics Score (%)");      
 
+    // Plot Data Points
     svg.append('g')
-        .selectAll("dot")
+        .selectAll("circle")
         .data(filteredData)
         .enter()
         .append("circle")
@@ -541,8 +556,9 @@ function renderScatterPlot() {
                 updateHoveredMovie();
             });
 
+    // Title for Scatterplot
     svg.append("text")
-        .attr("x", width / 2 )             
+        .attr("x", plotWidth / 2 )             
         .attr("y", 0 - (margin.top / 2))
         .attr("text-anchor", "middle")  
         .style("font-size", "16px") 
@@ -554,8 +570,12 @@ function renderScatterPlot() {
 DRAW BOXPLOT
 ----------------------*/
 function renderBoxPlot() {
+    // Clear existing SVG if any
+    boxPlotDiv.select("svg").remove();
+
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
+    // Sorting Data
     if (boxplotSorted === "chronological") {
         filteredData.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
     } else if (boxplotSorted === "highest-lowest") {
@@ -564,22 +584,25 @@ function renderBoxPlot() {
         filteredData.sort((a, b) => a[boxplotVar] - b[boxplotVar]);
     }
 
-    const margin = {top: 20, right: 30, bottom: 100, left: 60},
-          width = 600 - margin.left - margin.right,
-          height = 400 - margin.top - margin.bottom;
+    const margin = { top: 40, right: 40, bottom: 100, left: 60 },
+          plotWidth = 600,
+          plotHeight = 400,
+          width = plotWidth + margin.left + margin.right,
+          height = plotHeight + margin.top + margin.bottom;
 
     const svg = boxPlotDiv.append("svg")
-        .attr("width", width + margin.left + margin.right)
-        .attr("height", height + margin.top + margin.bottom)
+        .attr("width", width)
+        .attr("height", height)
       .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // X Scale
     const x = d3.scaleBand()
-        .range([0, width])
+        .range([0, plotWidth])
         .domain(filteredData.map(d => d.movie_title))
         .padding(0.2);
     svg.append("g")
-        .attr("transform", `translate(0,${height})`)
+        .attr("transform", `translate(0,${plotHeight})`)
         .call(d3.axisBottom(x))
         .selectAll("text")	
             .style("text-anchor", "end")
@@ -587,19 +610,24 @@ function renderBoxPlot() {
             .attr("dy", "-0.15em")
             .attr("transform", "rotate(-65)");
 
+    // Y Scale
     const y = d3.scaleLinear()
         .domain([0, d3.max(filteredData, d => +d[boxplotVar]) * 1.1])
-        .range([height, 0]);
+        .range([plotHeight, 0]);
     svg.append("g")
         .call(d3.axisLeft(y));
+
+    // Y Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left + 15)
-        .attr("x",0 - (height / 2))
+        .attr("y", 0 - margin.left + 20)
+        .attr("x",0 - (plotHeight / 2))
         .attr("dy", "1em")
         .style("text-anchor", "middle")
+        .style("font-size", "12px")
         .text("Worldwide Box Office ($)");
 
+    // Tooltip
     const tooltip = d3.select("body").append("div")	
         .attr("class", "tooltip")				
         .style("position", "absolute")
@@ -610,6 +638,7 @@ function renderBoxPlot() {
         .style("pointer-events", "none")
         .style("opacity", 0);
 
+    // Plot Bars
     svg.selectAll("mybar")
         .data(filteredData)
         .enter()
@@ -617,19 +646,31 @@ function renderBoxPlot() {
             .attr("x", d => x(d.movie_title))
             .attr("y", d => y(+d[boxplotVar]))
             .attr("width", x.bandwidth())
-            .attr("height", d => height - y(+d[boxplotVar]))
+            .attr("height", d => plotHeight - y(+d[boxplotVar]))
             .attr("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
                 hoveredMovie = d.movie_title;
                 updateHoveredMovie();
+                
+                tooltip.transition()		
+                    .duration(200)		
+                    .style("opacity", .9);		
+                tooltip.html(`${d.movie_title}<br/>Box Office: $${d3.format(",")(d[boxplotVar])}`)
+                    .style("left", (event.pageX) + "px")		
+                    .style("top", (event.pageY - 28) + "px");	
             })
             .on("mouseout", function() {
                 hoveredMovie = null;
                 updateHoveredMovie();
+                
+                tooltip.transition()		
+                    .duration(500)		
+                    .style("opacity", 0);	
             });
 
+    // Title for Boxplot
     svg.append("text")
-        .attr("x", width / 2 )             
+        .attr("x", plotWidth / 2 )             
         .attr("y", 0 - (margin.top / 2))
         .attr("text-anchor", "middle")  
         .style("font-size", "16px") 
