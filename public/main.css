@@ -36,6 +36,10 @@ body{
   float:left;
 }
 
+#graph_div {
+    text-align: center;
+}
+
 .headline, .subline{
   display: block;
   margin-top: 0.67em;
@@ -62,12 +66,6 @@ body{
   font-size: 30%;
 }
 
-
-#list_div div, #info_div, #selection_div {
-  border: 1px solid black;
-  margin: 3px;
-}
-
 #side_by_side_flex {
   display: flex;
   flex-direction: row;
@@ -80,6 +78,7 @@ body{
 }
 
 #info_div {
+  max-width: 500px;
   flex: 2;
   text-align: left;
 }

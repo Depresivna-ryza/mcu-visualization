@@ -2,7 +2,7 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 // Global variables
 let data;
-let networkDiv, infoDiv, graphConfigDiv, graphDiv, scatterPlotDiv, boxPlotDiv, movieListDiv;
+let networkDiv, infoDiv, graphConfigDiv, graphDiv, scatterPlotDiv, barPlotDiv, movieListDiv;
 
 let movieSelection = [];
 let hoveredMovie = null;
@@ -14,8 +14,8 @@ let adjacency = {};
 // Configuration variables
 let scatterplotXVar = "audience_score";
 let scatterplotYVar = "tomato_meter";
-let boxplotVar = "worldwide_box_office";
-let boxplotSorted = "chronological";
+let barplotVar = "worldwide_box_office";
+let barplotSorted = "chronological";
 
 /*----------------------
 LOAD DATA AND INITIALIZE
@@ -37,7 +37,7 @@ function init() {
     graphConfigDiv = d3.select("#graph_config_div");
     graphDiv = d3.select("#graph_div");
     scatterPlotDiv = graphDiv.append("div").attr("id", "scatter_plot_div").style("width", "50%").style("vertical-align", "top").style("display", "inline-block");
-    boxPlotDiv = graphDiv.append("div").attr("id", "box_plot_div").style("width", "50%").style("vertical-align", "top").style("display", "inline-block");
+    barPlotDiv = graphDiv.append("div").attr("id", "bar_plot_div").style("width", "50%").style("vertical-align", "top").style("horizontal-align", "middle").style("display", "inline-block");
 
     // Initialize Graph Configuration
     initGraphConfig();
@@ -55,7 +55,6 @@ function initGraphConfig() {
     const scatterplotVars = ["tomato_meter", "audience_score", "movie_duration", "production_budget", "opening_weekend", "domestic_box_office", "worldwide_box_office"];
 
     const scatterplotConfigDiv = graphConfigDiv.append("div").attr("id", "scatterplotConfig").style("width", "50%").style("display", "inline-block");
-    scatterplotConfigDiv.append("h3").text("Scatterplot Configuration");
 
     scatterplotConfigDiv.append("span")
         .text("X Variable: ")
@@ -75,7 +74,8 @@ function initGraphConfig() {
     scatterplotConfigDiv.append("span")
         .text("Y Variable: ")
         .style("font-weight", "bold")
-        .style("margin-right", "10px");
+        .style("margin-right", "10px")
+        .style("margin-left", "30px");
 
     scatterplotConfigDiv.append("select")
         .attr("id", "scatterplotYVar")
@@ -87,42 +87,42 @@ function initGraphConfig() {
         .attr("value", d => d)
         .property("selected", d => d === scatterplotYVar);
 
-    // Add dropdown for boxplot variable
-    const boxplotConfigDiv = graphConfigDiv.append("div").attr("id", "boxplotConfig").style("width", "50%").style("display", "inline-block");
-    boxplotConfigDiv.append("h3").text("Boxplot Configuration");
+    // Add dropdown for barplot variable
+    const barplotConfigDiv = graphConfigDiv.append("div").attr("id", "barplotConfig").style("width", "50%").style("display", "inline-block");
 
-    boxplotConfigDiv.append("span")
+    barplotConfigDiv.append("span")
         .text("Variable: ")
         .style("font-weight", "bold")
         .style("margin-right", "10px");
 
-    boxplotConfigDiv.append("select")
-        .attr("id", "boxplotVar")
+    barplotConfigDiv.append("select")
+        .attr("id", "barplotVar")
         .selectAll("option")
         .data(scatterplotVars)
         .enter()
         .append("option")
         .text(d => d)
         .attr("value", d => d)
-        .property("selected", d => d === boxplotVar);
+        .property("selected", d => d === barplotVar);
 
-    // Add dropdown for boxplot sorting
-    boxplotConfigDiv.append("span")
+    // Add dropdown for barplot sorting
+    barplotConfigDiv.append("span")
         .text("Sorted: ")
         .style("font-weight", "bold")
-        .style("margin-right", "10px");
+        .style("margin-right", "10px")
+        .style("margin-left", "30px");
 
     const boxplotSortOptions = ["chronological", "highest-lowest", "lowest-highest"];
 
-    boxplotConfigDiv.append("select")
-        .attr("id", "boxplotSorted")
+    barplotConfigDiv.append("select")
+        .attr("id", "barplotSorted")
         .selectAll("option")
         .data(boxplotSortOptions)
         .enter()
         .append("option")
         .text(d => d)
         .attr("value", d => d)
-        .property("selected", d => d === boxplotSorted);
+        .property("selected", d => d === barplotSorted);
 
     // Add event listeners for dropdowns
     d3.select("#scatterplotXVar").on("change", function() {
@@ -135,13 +135,13 @@ function initGraphConfig() {
         renderPlots();
     });
 
-    d3.select("#boxplotVar").on("change", function() {
-        boxplotVar = this.value;
+    d3.select("#barplotVar").on("change", function() {
+        barplotVar = this.value;
         renderPlots();
     });
 
-    d3.select("#boxplotSorted").on("change", function() {
-        boxplotSorted = this.value;
+    d3.select("#barplotSorted").on("change", function() {
+        barplotSorted = this.value;
         renderPlots();
     });
 }
@@ -270,7 +270,7 @@ function updateHoveredMovie() {
             .attr("r", d => d.movie_title === hoveredMovie ? 15 : 5)
             .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
 
-        boxPlotDiv.selectAll("rect")
+        barPlotDiv.selectAll("rect")
             .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
 
     } else {
@@ -297,7 +297,7 @@ function updateHoveredMovie() {
             .attr("r", 5)
             .style("fill", "#69b3a2");
 
-        boxPlotDiv.selectAll("rect")
+        barPlotDiv.selectAll("rect")
             .style("fill", "#69b3a2");
     }
 
@@ -492,6 +492,14 @@ function renderScatterPlot() {
 
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
+    if (isVariableInMillions(scatterplotXVar)) {
+        filteredData = filteredData.map(d => ({ ...d, [scatterplotXVar]: +d[scatterplotXVar] / 1e6 }));
+    }
+
+    if (isVariableInMillions(scatterplotYVar)) {
+        filteredData = filteredData.map(d => ({ ...d, [scatterplotYVar]: +d[scatterplotYVar] / 1e6 }));
+    }
+
     const margin = { top: 40, right: 40, bottom: 60, left: 60 },
           plotWidth = 600,
           plotHeight = 400,
@@ -501,6 +509,7 @@ function renderScatterPlot() {
     const svg = scatterPlotDiv.append("svg")
         .attr("width", width)
         .attr("height", height)
+        .style("horizontal-align", "middle")
       .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
@@ -514,11 +523,11 @@ function renderScatterPlot() {
 
     // X Axis Label
     svg.append("text")             
-        .attr("x", plotWidth / 2 )
-        .attr("y", plotHeight + margin.bottom - 15)
+        .attr("x", plotWidth / 2)
+        .attr("y", plotHeight + margin.bottom - 5)
         .attr("text-anchor", "middle")
         .style("font-size", "12px")
-        .text("Audience Score (%)");
+        .text(getFriendlyVarName(scatterplotXVar, true));
 
     // Y Scale
     const y = d3.scaleLinear()
@@ -530,12 +539,12 @@ function renderScatterPlot() {
     // Y Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left + 20)
-        .attr("x",0 - (plotHeight / 2))
+        // .attr("y", -margin.left + 25) // shifted further to avoid overlap
+        .attr("x", -plotHeight / 2)
         .attr("dy", "1em")
         .style("text-anchor", "middle")
         .style("font-size", "12px")
-        .text("Critics Score (%)");      
+        .text(getFriendlyVarName(scatterplotYVar, true));
 
     // Plot Data Points
     svg.append('g')
@@ -558,30 +567,34 @@ function renderScatterPlot() {
 
     // Title for Scatterplot
     svg.append("text")
-        .attr("x", plotWidth / 2 )             
-        .attr("y", 0 - (margin.top / 2))
+        .attr("x", plotWidth / 2)             
+        .attr("y", -10)
         .attr("text-anchor", "middle")  
-        .style("font-size", "16px") 
+        .style("font-size", "16px")
         .style("text-decoration", "underline")  
-        .text("Audience Score vs Critics Score Scatterplot");
+        .text(`${getFriendlyVarName(scatterplotYVar, true)} vs ${getFriendlyVarName(scatterplotXVar, true)}`);
 }
 
 /*----------------------
-DRAW BOXPLOT
+DRAW BARPLOT
 ----------------------*/
-function renderBoxPlot() {
+function renderBarPlot() {
     // Clear existing SVG if any
-    boxPlotDiv.select("svg").remove();
+    barPlotDiv.select("svg").remove();
 
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
+    if (isVariableInMillions(barplotVar)) {
+        filteredData = filteredData.map(d => ({ ...d, [barplotVar]: +d[barplotVar] / 1e6 }));
+    }
+
     // Sorting Data
-    if (boxplotSorted === "chronological") {
+    if (barplotSorted === "chronological") {
         filteredData.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
-    } else if (boxplotSorted === "highest-lowest") {
-        filteredData.sort((a, b) => b[boxplotVar] - a[boxplotVar]);
-    } else if (boxplotSorted === "lowest-highest") {
-        filteredData.sort((a, b) => a[boxplotVar] - b[boxplotVar]);
+    } else if (barplotSorted === "highest-lowest") {
+        filteredData.sort((a, b) => b[barplotVar] - a[barplotVar]);
+    } else if (barplotSorted === "lowest-highest") {
+        filteredData.sort((a, b) => a[barplotVar] - b[barplotVar]);
     }
 
     const margin = { top: 40, right: 40, bottom: 100, left: 60 },
@@ -590,7 +603,7 @@ function renderBoxPlot() {
           width = plotWidth + margin.left + margin.right,
           height = plotHeight + margin.top + margin.bottom;
 
-    const svg = boxPlotDiv.append("svg")
+    const svg = barPlotDiv.append("svg")
         .attr("width", width)
         .attr("height", height)
       .append("g")
@@ -612,7 +625,7 @@ function renderBoxPlot() {
 
     // Y Scale
     const y = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => +d[boxplotVar]) * 1.1])
+        .domain([0, d3.max(filteredData, d => +d[barplotVar]) * 1.1])
         .range([plotHeight, 0]);
     svg.append("g")
         .call(d3.axisLeft(y));
@@ -620,12 +633,12 @@ function renderBoxPlot() {
     // Y Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left + 20)
-        .attr("x",0 - (plotHeight / 2))
+        .attr("y", -margin.left)
+        .attr("x", -plotHeight / 2)
         .attr("dy", "1em")
         .style("text-anchor", "middle")
         .style("font-size", "12px")
-        .text("Worldwide Box Office ($)");
+        .text(getFriendlyVarName(barplotVar, true));
 
     // Tooltip
     const tooltip = d3.select("body").append("div")	
@@ -638,44 +651,32 @@ function renderBoxPlot() {
         .style("pointer-events", "none")
         .style("opacity", 0);
 
-    // Plot Bars
     svg.selectAll("mybar")
         .data(filteredData)
         .enter()
         .append("rect")
             .attr("x", d => x(d.movie_title))
-            .attr("y", d => y(+d[boxplotVar]))
+            .attr("y", d => y(+d[barplotVar]))
             .attr("width", x.bandwidth())
-            .attr("height", d => plotHeight - y(+d[boxplotVar]))
+            .attr("height", d => plotHeight - y(+d[barplotVar]))
             .attr("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
                 hoveredMovie = d.movie_title;
                 updateHoveredMovie();
-                
-                tooltip.transition()		
-                    .duration(200)		
-                    .style("opacity", .9);		
-                tooltip.html(`${d.movie_title}<br/>Box Office: $${d3.format(",")(d[boxplotVar])}`)
-                    .style("left", (event.pageX) + "px")		
-                    .style("top", (event.pageY - 28) + "px");	
             })
             .on("mouseout", function() {
                 hoveredMovie = null;
                 updateHoveredMovie();
-                
-                tooltip.transition()		
-                    .duration(500)		
-                    .style("opacity", 0);	
             });
 
-    // Title for Boxplot
+    // Title for Barplot
     svg.append("text")
-        .attr("x", plotWidth / 2 )             
-        .attr("y", 0 - (margin.top / 2))
-        .attr("text-anchor", "middle")  
-        .style("font-size", "16px") 
-        .style("text-decoration", "underline")  
-        .text("Worldwide Box Office by Release Order Boxplot");
+        .attr("x", plotWidth / 2)             
+        .attr("y", -10)
+        .attr("text-anchor", "middle")
+        .style("font-size", "16px")
+        .style("text-decoration", "underline")
+        .text(`${getFriendlyVarName(barplotVar, true)} Barplot`);
 }
 
 /*----------------------
@@ -683,10 +684,10 @@ UPDATE GRAPHS BASED ON PHASE
 ----------------------*/
 function renderPlots() {
     scatterPlotDiv.selectAll("*").remove();
-    boxPlotDiv.selectAll("*").remove();
+    barPlotDiv.selectAll("*").remove();
 
     renderScatterPlot();
-    renderBoxPlot();
+    renderBarPlot();
 }
 
 /*----------------------
@@ -723,5 +724,37 @@ function getNodeColor(d) {
         return movieSelection.includes(d.id) ? "green" : "blue";
     }
     return "red";
+}
+
+function getFriendlyVarName(varName, inMillions = false) {
+    // Simple mapping - adjust as needed
+    const map = {
+        "audience_score": "Audience Score (%)",
+        "tomato_meter": "Critics Score (%)",
+        "movie_duration": "Movie Duration (min)",
+        "production_budget": "Production Budget ($)",
+        "opening_weekend": "Opening Weekend ($)",
+        "domestic_box_office": "Domestic Box Office ($)",
+        "worldwide_box_office": "Worldwide Box Office ($)"
+    };
+
+    const mapinMillions = {
+        "audience_score": "Audience Score (%)",
+        "tomato_meter": "Critics Score (%)",
+        "movie_duration": "Movie Duration (min)",
+        "production_budget": "Production Budget ($ Mil)",
+        "opening_weekend": "Opening Weekend ($ Mil)",
+        "domestic_box_office": "Domestic Box Office ($ Mil)",
+        "worldwide_box_office": "Worldwide Box Office ($ Mil)"
+    };
+
+    if (inMillions) {
+        return mapinMillions[varName] || varName;
+    }
+    return map[varName] || varName;
+}
+
+function isVariableInMillions(varName) {
+    return ["production_budget", "opening_weekend", "domestic_box_office", "worldwide_box_office"].includes(varName);
 }
 
