@@ -4,8 +4,10 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"; // Import D3
 let data; // Data from movie_stats.csv
 let networkDiv, infoDiv, phaseSelectorDiv, graphConfigDiv, graphDiv;
 
-let movie_selection = [];
+let movieSelection = [];
 let selectedPhase = 1;
+
+let selectedGraph = "scatterplot";
 
 /*----------------------
 LOAD DATA AND INITIALIZE
@@ -40,7 +42,8 @@ function init() {
     initGraphConfig();
 
     renderMovieList(selectedPhase);
-    drawNetworkGraph(selectedPhase);
+    renderNetworkGraph(selectedPhase);
+    renderPlot();
 }
 
 /*----------------------
@@ -67,19 +70,8 @@ function initGraphConfig() {
         .attr("name", "graphType")
         .attr("value", d => d.toLowerCase())
         .on("change", function(event, d) {
-            const selectedType = d.toLowerCase();
-            if (selectedType === "scatterplot") {
-                drawScatterPlot();
-            } else if (selectedType === "boxplot") {
-                drawBoxPlot();
-            }
-        });
-
-    // Set default selection to Scatterplot
-    graphConfigDiv.select("input[value='scatterplot']")
-        .property("checked", true)
-        .each(function() {
-            drawScatterPlot();
+            selectedGraph = this.value;
+            renderPlot();
         });
 }
 
@@ -88,57 +80,77 @@ function initGraphConfig() {
 /*----------------------
 RENDER MOVIE LIST
 ----------------------*/
-function renderMovieList(phase) {
+function renderMovieList(x) {
     const movieListDiv = d3.select("#movie_list_div");
     movieListDiv.selectAll("*").remove(); // Clear existing content
 
-    // Get movies for the specific phase
-    const moviesInPhase = getMoviesByPhase(phase);
+    const phases = [1, 2, 3, 4];
 
-    // Phase Header
-    const phaseHeader = movieListDiv.append("h3")
-        .text(`Phase ${phase}`)
-        .style("cursor", "pointer")
-        .on("click", () => togglePhaseSelection(phase));
-
-    const movieList = movieListDiv.append("ul")
-        .attr("id", `phase_${phase}_list`);
-
-    moviesInPhase.forEach(movie => {
-        movieList.append("li")
-            .text(movie)
+    phases.forEach(phase => {
+        // Phase Header
+        const phaseHeader = movieListDiv.append("h3")
+            .text(`Phase ${phase}`)
             .style("cursor", "pointer")
-            .on("click", () => toggleMovieSelection(movie))
-            .style("color", movie_selection.includes(movie) ? "green" : "blue");
+            .on("click", () => togglePhase(phase));
+
+        // Select All label
+        phaseHeader.append("span")
+            .text(" (select all)")
+            .style("cursor", "pointer")
+            .style("margin-left", "10px")
+            .on("click", () => togglePhaseSelection(phase));
+
+        // Movie List
+        const movieList = movieListDiv.append("ul")
+            .attr("id", `phase_${phase}_list`)
+            .style("display", "none");
+
+        const moviesInPhase = getMoviesByPhase(phase);
+        moviesInPhase.forEach(movie => {
+            movieList.append("li")
+                .text(movie)
+                .style("cursor", "pointer")
+                .on("click", () => toggleMovieSelection(movie))
+                .style("color", movieSelection.includes(movie) ? "green" : "blue");
+        });
     });
 }
 
+function togglePhase(phase) {
+    const movieList = d3.select(`#phase_${phase}_list`);
+    const isVisible = movieList.style("display") === "block";
+    movieList.style("display", isVisible ? "none" : "block");
+}
+
 function toggleMovieSelection(movie) {
-    const index = movie_selection.indexOf(movie);
+    const index = movieSelection.indexOf(movie);
     if (index > -1) {
         // Deselect the movie
-        movie_selection.splice(index, 1);
+        movieSelection.splice(index, 1);
     } else {
         // Select the movie
-        movie_selection.push(movie);
+        movieSelection.push(movie);
     }
     updateNodeColors();
     renderMovieList(selectedPhase);
+    renderPlot();
 }
 function togglePhaseSelection(phase) {
     const moviesInPhase = data.filter(d => +d.phase === phase).map(d => d.movie_title);
-    const allSelected = moviesInPhase.every(movie => movie_selection.includes(movie));
+    const allSelected = moviesInPhase.every(movie => movieSelection.includes(movie));
 
     if (allSelected) {
         // Deselect all movies in the phase
-        movie_selection = movie_selection.filter(movie => !moviesInPhase.includes(movie));
+        movieSelection = movieSelection.filter(movie => !moviesInPhase.includes(movie));
     } else {
         // Select all movies in the phase
-        movie_selection = Array.from(new Set([...movie_selection, ...moviesInPhase]));
+        movieSelection = Array.from(new Set([...movieSelection, ...moviesInPhase]));
     }
     updateNodeColors();
     renderMovieList(selectedPhase);
+    renderPlot();
 }
+
 function updateNodeColors() {
     networkDiv.selectAll("circle")
         .attr("fill", d => getNodeColor(d));
@@ -164,8 +176,9 @@ function addPhaseSelector() {
             .style("padding", "5px 10px")
             .on("click", () => {
                 selectedPhase = phase;
-                updateNetworkGraph(phase);
-                updateGraphs(phase);
+                renderMovieList(phase);
+                renderNetworkGraph(phase);
+                renderPlot();
             });
     });
 }
@@ -173,16 +186,9 @@ function addPhaseSelector() {
 /*----------------------
 DRAW NETWORK GRAPH
 ----------------------*/
-function drawNetworkGraph(filteredPhase) {
+function renderNetworkGraph(filteredPhase) {
     // Remove existing SVG if any
     networkDiv.select("svg").remove();
-
-    // Add loading indicator
-    const loading = networkDiv.append("div")
-        .attr("id", "loading")
-        .style("text-align", "center")
-        .style("font-size", "18px")
-        .text("Loading network graph...");
 
     // Load nodes and edges in parallel
     Promise.all([
@@ -237,26 +243,33 @@ function drawNetworkGraph(filteredPhase) {
             adjacency[l.target].push(l.source);
         });
 
-        // Initialize the simulation
-        const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(100)) // Adjusted distance for spacing
-            .force("charge", d3.forceManyBody().strength(-300)) // Increased charge for more separation
-            .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collide", d3.forceCollide().radius(d => d.group === "movie" ? 2.5 * radius : radius + 10).strength(1)) // Prevent overlapping
-            .stop(); // Prevent automatic simulation
-
-        // Manually run the simulation to completion
-        const numIterations = 300; // Adjust based on data size
-        for (let i = 0; i < numIterations; ++i) simulation.tick();
-        simulation.stop();
-
-        // Remove loading indicator
-        loading.remove();
-
-        // Create SVG container
         const svg = networkDiv.append("svg")
             .attr("width", width)
             .attr("height", height);
+
+
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(50)) 
+            .force("charge", d3.forceManyBody()
+                // .distanceMin(5 * radius)
+                .distanceMax( d => d.group === "movie" ? 2 * radius : 2000 * radius)
+                .strength( d => d.group === "movie" ? 100 : -20))
+            .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1)) // Center the nodes)
+            .force("collide", 
+                d3.forceCollide()
+                .radius(d => d.group === "movie" ? 3 * radius : 1.5 * radius)
+                .strength(1));
+
+        simulation.on("tick", () => {
+            // Update node and link positions
+            link.attr("x1", d => clamp(d.source.x, radius, width - radius))
+                .attr("y1", d => clamp(d.source.y, radius, height - radius))
+                .attr("x2", d => clamp(d.target.x, radius, width - radius))
+                .attr("y2", d => clamp(d.target.y, radius, height - radius));
+
+            node.attr("cx", d => clamp(d.x, radius, width - radius))
+                .attr("cy", d => clamp(d.y, radius, height - radius));
+        });
 
         // Draw links with final positions
         const link = svg.append("g")
@@ -272,17 +285,38 @@ function drawNetworkGraph(filteredPhase) {
             .attr("x2", d => clamp(d.target.x, radius, width - radius))
             .attr("y2", d => clamp(d.target.y, radius, height - radius));
 
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
         // Draw nodes with final positions
         const node = svg.append("g")
-            .attr("class", "nodes")
-            .selectAll("circle")
-            .data(nodes)
-            .enter()
-            .append("circle")
-            .attr("r", d => d.group === "movie" ? 2.5 * radius : radius)
-            .attr("fill", d => getNodeColor(d))
-            .attr("cx", d => clamp(d.x, radius, width - radius))
-            .attr("cy", d => clamp(d.y, radius, height - radius));
+        .attr("class", "nodes")
+        .selectAll("circle")
+        .data(nodes)
+        .enter()
+        .append("circle")
+        .attr("r", d => d.group === "movie" ? 2.5 * radius : radius)
+        .attr("fill", d => getNodeColor(d))
+        .attr("cx", d => clamp(d.x, radius, width - radius))
+        .attr("cy", d => clamp(d.y, radius, height - radius))
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
 
         // Add titles for tooltips
         node.append("title")
@@ -298,8 +332,10 @@ function drawNetworkGraph(filteredPhase) {
                 n.id === d.id || neighbors.includes(n.id) ? 1 : 0.2
             ));
             link.attr("opacity", l => (
-                l.source.id === d.id || l.target.id === d.id ||
-                neighbors.includes(l.source.id) || neighbors.includes(l.target.id)
+                l.source.id === d.id || 
+                l.target.id === d.id 
+                // neighbors.includes(l.source.id) || 
+                // neighbors.includes(l.target.id)
                     ? 1 : 0.2
             ));
 
@@ -310,7 +346,6 @@ function drawNetworkGraph(filteredPhase) {
                     displayMovieInfo(movieData);
                 }
             } else {
-                // Optionally, handle character nodes if needed
                 // infoDiv.html(`
                 //     <h2>${d.id}</h2>
                 //     <p>Character Node</p>
@@ -327,40 +362,17 @@ function drawNetworkGraph(filteredPhase) {
 
         // Add click event to toggle movie selection
         node.on("click", function(event, d) {
-            if (d.group === "movie") { // Only movies can be selected
-                const index = movie_selection.indexOf(d.id);
-                if (index > -1) {
-                    // If already selected, remove from selection
-                    movie_selection.splice(index, 1);
-                } else {
-                    // If not selected, add to selection
-                    movie_selection.push(d.id);
-                }
-                // Update node colors based on selection
-                node.attr("fill", d => getNodeColor(d));
-            }
+            toggleMovieSelection(d.id);
         });
     }
 )}
 
-/*----------------------
-UPDATE NETWORK GRAPH BASED ON PHASE
-----------------------*/
-function updateNetworkGraph(phase) {
-    drawNetworkGraph(phase);
-    updateGraphs(phase);
-    renderMovieList(phase);
-}
 
 /*----------------------
 DRAW SCATTERPLOT
 ----------------------*/
-function drawScatterPlot(filteredPhase) {
-    // Filter data based on phase
-    let filteredData = data;
-    if (filteredPhase) {
-        filteredData = data.filter(d => +d.phase === filteredPhase);
-    }
+function renderScatterPlot() {
+    let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
     // Set dimensions and margins
     const margin = {top: 20, right: 30, bottom: 50, left: 60},
@@ -441,12 +453,8 @@ function drawScatterPlot(filteredPhase) {
 /*----------------------
 DRAW BOXPLOT
 ----------------------*/
-function drawBoxPlot(filteredPhase) {
-    // Filter data based on phase
-    let filteredData = data;
-    if (filteredPhase) {
-        filteredData = data.filter(d => +d.phase === filteredPhase);
-    }
+function renderBoxPlot() {
+    let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
     // Sort data by release date
     filteredData.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
@@ -544,17 +552,13 @@ function drawBoxPlot(filteredPhase) {
 /*----------------------
 UPDATE GRAPHS BASED ON PHASE
 ----------------------*/
-function updateGraphs(filteredPhase) {
-    // Remove existing graphs
+function renderPlot() {
     graphDiv.selectAll("*").remove();
 
-    // Determine which graph to draw based on selected radio button
-    const selectedGraph = graphConfigDiv.select("input[name='graphType']:checked").node().value;
-
     if (selectedGraph === "scatterplot") {
-        drawScatterPlot(filteredPhase);
+        renderScatterPlot();
     } else if (selectedGraph === "boxplot") {
-        drawBoxPlot(filteredPhase);
+        renderBoxPlot();
     }
 }
 
@@ -589,8 +593,9 @@ function getMoviesByPhase(phase) {
 
 function getNodeColor(d) {
     if (d.group === "movie") {
-        return movie_selection.includes(d.id) ? "green" : "blue";
+        return movieSelection.includes(d.id) ? "green" : "blue";
     } else {
         return "red";
     }
 }
+
