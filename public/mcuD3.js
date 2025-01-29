@@ -1,13 +1,21 @@
-import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"; // Import D3
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 // Global variables
-let data; // Data from movie_stats.csv
+let data;
 let networkDiv, infoDiv, phaseSelectorDiv, graphConfigDiv, graphDiv;
 
 let movieSelection = [];
 let selectedPhases = new Set();
 let showSelected = false;
 let selectedGraph = "scatterplot";
+
+let hoveredMovie = null;
+
+
+let nodes = [];
+let links = [];
+let adjacency = {};
+
 
 /*----------------------
 LOAD DATA AND INITIALIZE
@@ -87,8 +95,7 @@ function renderMovieList() {
         // Phase Header
         const phaseHeader = movieListDiv.append("h3")
             .text(`Phase ${phase}`)
-            .style("cursor", "pointer")
-            .on("click", () => togglePhase(phase));
+            .style("cursor", "pointer");
 
         // Select All label
         phaseHeader.append("span")
@@ -99,8 +106,7 @@ function renderMovieList() {
 
         // Movie List
         const movieList = movieListDiv.append("ul")
-            .attr("id", `phase_${phase}_list`)
-            .style("display", "none");
+            .attr("id", `phase_${phase}_list`);
 
         const moviesInPhase = getMoviesByPhase(phase);
         moviesInPhase.forEach(movie => {
@@ -111,12 +117,6 @@ function renderMovieList() {
                 .style("color", movieSelection.includes(movie) ? "green" : "blue");
         });
     });
-}
-
-function togglePhase(phase) {
-    const movieList = d3.select(`#phase_${phase}_list`);
-    const isVisible = movieList.style("display") === "block";
-    movieList.style("display", isVisible ? "none" : "block");
 }
 
 function toggleMovieSelection(movie) {
@@ -131,6 +131,9 @@ function toggleMovieSelection(movie) {
     updateNodeColors();
     renderMovieList();
     renderPlot();
+    if (showSelected) {
+        renderNetworkGraph();
+    }
 }
 
 function togglePhaseSelection(phase) {
@@ -147,11 +150,52 @@ function togglePhaseSelection(phase) {
     updateNodeColors();
     renderMovieList();
     renderPlot();
+    if (showSelected) {
+        renderNetworkGraph();
+    }
 }
 
 function updateNodeColors() {
     networkDiv.selectAll("circle")
         .attr("fill", d => getNodeColor(d));
+}
+
+function updateHoveredMovie() {
+    let node = networkDiv.selectAll("circle");
+    let link = networkDiv.selectAll("line");
+
+    if (hoveredMovie) {
+        let neighbors = adjacency[hoveredMovie] || [];
+        node.attr("opacity", n => (n.id === hoveredMovie || neighbors.includes(n.id) ? 1 : 0.2));
+        link.attr("opacity", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie ? 1 : 0.2));
+
+        const movieData = data.find(movie => movie.movie_title === hoveredMovie);
+        if (movieData) {
+            displayMovieInfo(movieData);
+        }
+        
+
+    graphDiv.selectAll("circle")
+        .attr("r", d => d.movie_title === hoveredMovie ? 15 : 5)
+        .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
+
+    graphDiv.selectAll("rect")
+        .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
+
+    
+    } else {
+        node.attr("opacity", 1);
+        link.attr("opacity", 1);
+        infoDiv.html(`<h2>Hover over a movie node to see details here.</h2>`);
+
+        graphDiv.selectAll("circle")
+            .attr("r", 5)
+            .style("fill", "#69b3a2");
+
+        graphDiv.selectAll("rect")
+            .style("fill", "#69b3a2");
+
+    }
 }
 
 /*----------------------
@@ -168,30 +212,51 @@ function addPhaseSelector() {
     phases.forEach(phase => {
         phaseSelectorDiv.append("button")
             .attr("type", "button")
+            .attr("id", `phase_button_${phase}`)
             .text(`Phase ${phase}`)
             .style("margin-right", "5px")
             .style("padding", "5px 10px")
+            .style("background-color", selectedPhases.has(phase) ? "lightblue" : "white")
             .on("click", () => {
                 if (selectedPhases.has(phase)) {
-                    selectedPhases.delete(phase);
+                    if (selectedPhases.size > 1) {
+                        selectedPhases.delete(phase);
+                        updatePhaseButtonStyles();
+                        renderNetworkGraph();
+                    }
                 } else {
                     selectedPhases.add(phase);
+                    updatePhaseButtonStyles();
+                    renderNetworkGraph();
                 }
                 showSelected = false;
-                renderNetworkGraph();
+
             });
     });
 
     phaseSelectorDiv.append("button")
         .attr("type", "button")
+        .attr("id", "show_selected_button")
         .text("Show Selected")
         .style("margin-right", "5px")
         .style("padding", "5px 10px")
+        .style("background-color", showSelected ? "lightblue" : "white")
         .on("click", () => {
             selectedPhases.clear();
             showSelected = true;
+            updatePhaseButtonStyles();
             renderNetworkGraph();
         });
+}
+
+function updatePhaseButtonStyles() {
+    const phases = [1, 2, 3, 4];
+    phases.forEach(phase => {
+        d3.select(`#phase_button_${phase}`)
+            .style("background-color", selectedPhases.has(phase) ? "lightblue" : "white");
+    });
+    d3.select("#show_selected_button")
+        .style("background-color", showSelected ? "lightblue" : "white");
 }
 
 /*----------------------
@@ -203,12 +268,15 @@ function renderNetworkGraph() {
 
     // Load nodes and edges in parallel
     Promise.all([
-        d3.csv("./public/movies_characters_list.csv"),         // contains name, type
+        d3.csv("./public/movies_characters_list.csv"),        // contains name, type
         d3.csv("./public/movies_characters_occurences.csv"),  // contains movie, character
-        d3.csv("./public/movie_stats.csv")                     // contains movie_title, phase
+        d3.csv("./public/movie_stats.csv")                    // contains movie_title, phase
     ]).then(([listData, edgesData, statsData]) => {
 
         let filteredMovies;
+        let nodes;
+        let links;
+
         if (showSelected) {
             filteredMovies = movieSelection;
         } else {
@@ -228,13 +296,13 @@ function renderNetworkGraph() {
         );
 
         // Convert listData to nodes
-        const nodes = filteredNodes.map(d => ({
+        nodes = filteredNodes.map(d => ({
             id: d.name,
             group: d.type
         }));
 
         // Convert edgesData to links
-        const links = filteredLinks.map(d => ({
+        links = filteredLinks.map(d => ({
             source: d.movie,
             target: d.character
         }));
@@ -244,14 +312,13 @@ function renderNetworkGraph() {
         const radius = 10; // node radius
 
         // Build an adjacency list to identify neighbors
-        const adjacency = {};
+        adjacency = {};
         nodes.forEach(n => {
             adjacency[n.id] = [];
         });
 
         links.forEach(l => {
             adjacency[l.source].push(l.target);
-            adjacency[l.target].push(l.source);
         });
 
         const svg = networkDiv.append("svg")
@@ -262,7 +329,7 @@ function renderNetworkGraph() {
             .force("link", d3.forceLink(links).id(d => d.id).distance(50)) 
             .force("charge", d3.forceManyBody()
                 .distanceMax(d => d.group === "movie" ? 2 * radius : 2000 * radius)
-                .strength(d => d.group === "movie" ? 100 : -20))
+                .strength(d => d.group === "movie" ? 500 : -20))
             .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
             .force("collide", d3.forceCollide()
                 .radius(d => d.group === "movie" ? 3 * radius : 1.5 * radius)
@@ -331,22 +398,13 @@ function renderNetworkGraph() {
 
         // Add interactivity: Highlight adjacent nodes on hover and update infoDiv
         node.on("mouseover", function(event, d) {
-            const neighbors = adjacency[d.id] || [];
-            node.attr("opacity", n => (n.id === d.id || neighbors.includes(n.id) ? 1 : 0.2));
-            link.attr("opacity", l => (l.source.id === d.id || l.target.id === d.id ? 1 : 0.2));
-
-            if (d.group === "movie") {
-                const movieData = data.find(movie => movie.movie_title === d.id);
-                if (movieData) {
-                    displayMovieInfo(movieData);
-                }
-            }
+            hoveredMovie = d.id;
+            updateHoveredMovie();
         });
 
         node.on("mouseout", function() {
-            node.attr("opacity", 1);
-            link.attr("opacity", 1);
-            infoDiv.html(`<h2>Hover over a movie node to see details here.</h2>`);
+            hoveredMovie = null;
+            updateHoveredMovie();
         });
 
         node.on("click", function(event, d) {
@@ -405,18 +463,22 @@ function renderScatterPlot() {
             .attr("r", 5)
             .style("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
-                d3.select(this)
-                    .transition()
-                    .duration(100)
-                    .attr("r", 8)
-                    .style("fill", "orange");
+                hoveredMovie = d.movie_title;
+                updateHoveredMovie();
+                // d3.select(this)
+                //     .transition()
+                //     .duration(100)
+                //     .attr("r", 8)
+                //     .style("fill", "orange");
             })
             .on("mouseout", function() {
-                d3.select(this)
-                    .transition()
-                    .duration(100)
-                    .attr("r", 5)
-                    .style("fill", "#69b3a2");
+                hoveredMovie = null;
+                updateHoveredMovie();
+                // d3.select(this)
+                //     .transition()
+                //     .duration(100)
+                //     .attr("r", 5)
+                //     .style("fill", "#69b3a2");
             });
 
     svg.append("text")
@@ -492,21 +554,25 @@ function renderBoxPlot() {
             .attr("height", d => height - y(+d.worldwide_box_office))
             .attr("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
-                d3.select(this)
-                    .attr("fill", "orange");
-                tooltip.transition()		
-                    .duration(200)		
-                    .style("opacity", .9);		
-                tooltip.html(`<strong>${d.movie_title}</strong><br/>Worldwide Box Office: $${Number(d.worldwide_box_office).toLocaleString()}`)	
-                    .style("left", (event.pageX) + "px")		
-                    .style("top", (event.pageY - 28) + "px");	
+                hoveredMovie = d.movie_title;
+                updateHoveredMovie();
+                // d3.select(this)
+                //     .attr("fill", "orange");
+                // tooltip.transition()		
+                //     .duration(200)		
+                //     .style("opacity", .9);		
+                // tooltip.html(`<strong>${d.movie_title}</strong><br/>Worldwide Box Office: $${Number(d.worldwide_box_office).toLocaleString()}`)	
+                //     .style("left", (event.pageX) + "px")		
+                //     .style("top", (event.pageY - 28) + "px");	
             })
             .on("mouseout", function() {
-                d3.select(this)
-                    .attr("fill", "#69b3a2");
-                tooltip.transition()		
-                    .duration(500)		
-                    .style("opacity", 0);	
+                hoveredMovie = null;
+                updateHoveredMovie();
+                // d3.select(this)
+                //     .attr("fill", "#69b3a2");
+                // tooltip.transition()		
+                //     .duration(500)		
+                //     .style("opacity", 0);	
             });
 
     svg.append("text")
