@@ -196,13 +196,8 @@ function renderNetworkGraph(filteredPhase) {
         d3.csv("./public/movies_characters_occurences.csv"),  // contains movie, character
         d3.csv("./public/movie_stats.csv")                     // contains movie_title, phase
     ]).then(([listData, edgesData, statsData]) => {
-        let filteredMovies;
 
-        if (filteredPhase) {
-            filteredMovies = getMoviesByPhase(filteredPhase);
-        } else {
-            filteredMovies = data.map(d => d.movie_title);
-        }
+        let filteredMovies = movieSelection;
 
         // Filter edges to include only those in the filtered movies
         const filteredLinks = edgesData.filter(d => filteredMovies.includes(d.movie));
