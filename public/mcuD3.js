@@ -2,15 +2,20 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 // Global variables
 let data;
-let networkDiv, infoDiv, graphConfigDiv, graphDiv, movieListDiv ;
+let networkDiv, infoDiv, graphConfigDiv, graphDiv, scatterPlotDiv, boxPlotDiv, movieListDiv;
 
 let movieSelection = [];
-let selectedGraph = "scatterplot";
 let hoveredMovie = null;
 
 let nodes = [];
 let links = [];
 let adjacency = {};
+
+// Configuration variables
+let scatterplotXVar = "audience_score";
+let scatterplotYVar = "tomato_meter";
+let boxplotVar = "worldwide_box_office";
+let boxplotSorted = "chronological";
 
 /*----------------------
 LOAD DATA AND INITIALIZE
@@ -31,42 +36,114 @@ function init() {
     infoDiv = d3.select("#info_div");
     graphConfigDiv = d3.select("#graph_config_div");
     graphDiv = d3.select("#graph_div");
+    scatterPlotDiv = graphDiv.append("div").attr("id", "scatter_plot_div").style("width", "50%").style("display", "inline-block");
+    boxPlotDiv = graphDiv.append("div").attr("id", "box_plot_div").style("width", "50%").style("display", "inline-block");
 
     // Initialize Graph Configuration
     initGraphConfig();
 
     renderMovieList();
     renderNetworkGraph();
-    renderPlot();
+    renderPlots();
 }
 
 /*----------------------
 INITIALIZE GRAPH CONFIGURATION
 ----------------------*/
 function initGraphConfig() {
-    // Add graph type selector
-    graphConfigDiv.append("span")
-        .text("Select Graph Type: ")
+    // Add dropdowns for scatterplot variables
+    const scatterplotVars = ["tomato_meter", "audience_score", "movie_duration", "production_budget", "opening_weekend", "domestic_box_office", "worldwide_box_office"];
+
+    const scatterplotConfigDiv = graphConfigDiv.append("div").attr("id", "scatterplotConfig").style("width", "50%").style("display", "inline-block");
+    scatterplotConfigDiv.append("h3").text("Scatterplot Configuration");
+
+    scatterplotConfigDiv.append("span")
+        .text("X Variable: ")
         .style("font-weight", "bold")
         .style("margin-right", "10px");
 
-    // Create radio buttons for Scatterplot and Boxplot
-    const graphTypes = ["Scatterplot", "Boxplot"];
-
-    graphConfigDiv.selectAll("label")
-        .data(graphTypes)
+    scatterplotConfigDiv.append("select")
+        .attr("id", "scatterplotXVar")
+        .selectAll("option")
+        .data(scatterplotVars)
         .enter()
-        .append("label")
-        .style("margin-right", "15px")
+        .append("option")
         .text(d => d)
-        .append("input")
-        .attr("type", "radio")
-        .attr("name", "graphType")
-        .attr("value", d => d.toLowerCase())
-        .on("change", function() {
-            selectedGraph = this.value;
-            renderPlot();
-        });
+        .attr("value", d => d)
+        .property("selected", d => d === scatterplotXVar);
+
+    scatterplotConfigDiv.append("span")
+        .text("Y Variable: ")
+        .style("font-weight", "bold")
+        .style("margin-right", "10px");
+
+    scatterplotConfigDiv.append("select")
+        .attr("id", "scatterplotYVar")
+        .selectAll("option")
+        .data(scatterplotVars)
+        .enter()
+        .append("option")
+        .text(d => d)
+        .attr("value", d => d)
+        .property("selected", d => d === scatterplotYVar);
+
+    // Add dropdown for boxplot variable
+    const boxplotConfigDiv = graphConfigDiv.append("div").attr("id", "boxplotConfig").style("width", "50%").style("display", "inline-block");
+    boxplotConfigDiv.append("h3").text("Boxplot Configuration");
+
+    boxplotConfigDiv.append("span")
+        .text("Variable: ")
+        .style("font-weight", "bold")
+        .style("margin-right", "10px");
+
+    boxplotConfigDiv.append("select")
+        .attr("id", "boxplotVar")
+        .selectAll("option")
+        .data(scatterplotVars)
+        .enter()
+        .append("option")
+        .text(d => d)
+        .attr("value", d => d)
+        .property("selected", d => d === boxplotVar);
+
+    // Add dropdown for boxplot sorting
+    boxplotConfigDiv.append("span")
+        .text("Sorted: ")
+        .style("font-weight", "bold")
+        .style("margin-right", "10px");
+
+    const boxplotSortOptions = ["chronological", "highest-lowest", "lowest-highest"];
+
+    boxplotConfigDiv.append("select")
+        .attr("id", "boxplotSorted")
+        .selectAll("option")
+        .data(boxplotSortOptions)
+        .enter()
+        .append("option")
+        .text(d => d)
+        .attr("value", d => d)
+        .property("selected", d => d === boxplotSorted);
+
+    // Add event listeners for dropdowns
+    d3.select("#scatterplotXVar").on("change", function() {
+        scatterplotXVar = this.value;
+        renderPlots();
+    });
+
+    d3.select("#scatterplotYVar").on("change", function() {
+        scatterplotYVar = this.value;
+        renderPlots();
+    });
+
+    d3.select("#boxplotVar").on("change", function() {
+        boxplotVar = this.value;
+        renderPlots();
+    });
+
+    d3.select("#boxplotSorted").on("change", function() {
+        boxplotSorted = this.value;
+        renderPlots();
+    });
 }
 
 /*----------------------
@@ -106,7 +183,6 @@ function renderMovieList() {
                     updateHoveredMovie();
                 })
                 .on("mouseleave", () => {
-                    console.log("mouseout");
                     hoveredMovie = null;
                     updateHoveredMovie();
                 })
@@ -126,7 +202,7 @@ function toggleMovieSelection(movie) {
     }
     updateNodeColors();
     renderMovieList();
-    renderPlot();
+    renderPlots();
     renderNetworkGraph();
 }
 
@@ -143,7 +219,7 @@ function togglePhaseSelection(phase) {
     }
     updateNodeColors();
     renderMovieList();
-    renderPlot();
+    renderPlots();
     renderNetworkGraph();
 }
 
@@ -190,11 +266,11 @@ function updateHoveredMovie() {
             displayMovieInfo(movieData);
         }
 
-        graphDiv.selectAll("circle")
+        scatterPlotDiv.selectAll("circle")
             .attr("r", d => d.movie_title === hoveredMovie ? 15 : 5)
             .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
 
-        graphDiv.selectAll("rect")
+        boxPlotDiv.selectAll("rect")
             .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
 
     } else {
@@ -217,21 +293,16 @@ function updateHoveredMovie() {
 
         infoDiv.html(`<h2>Hover over a movie node to see details here.</h2>`);
 
-        graphDiv.selectAll("circle")
+        scatterPlotDiv.selectAll("circle")
             .attr("r", 5)
             .style("fill", "#69b3a2");
 
-        graphDiv.selectAll("rect")
+        boxPlotDiv.selectAll("rect")
             .style("fill", "#69b3a2");
     }
 
     var lis = document.getElementsByTagName("li");  
     for (var i = 0; i < lis.length; i++) {
-        console.log(lis[i].textContent);
-        console.log(hoveredMovie);
-        console.log(lis[i].textContent === hoveredMovie);
-        console.log(movieSelection);
-
         if (lis[i].textContent === hoveredMovie) {
             lis[i].style.color = "orange";
         } else if (movieSelection.includes(lis[i].textContent)) {
@@ -422,14 +493,14 @@ function renderScatterPlot() {
           width = 600 - margin.left - margin.right,
           height = 400 - margin.top - margin.bottom;
 
-    const svg = graphDiv.append("svg")
+    const svg = scatterPlotDiv.append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
       .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const x = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => +d.audience_score) + 10])
+        .domain([0, d3.max(filteredData, d => +d[scatterplotXVar]) + 10])
         .range([0, width]);
     svg.append("g")
         .attr("transform", `translate(0,${height})`)
@@ -440,7 +511,7 @@ function renderScatterPlot() {
         .text("Audience Score (%)");
 
     const y = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => +d.tomato_meter) + 10])
+        .domain([0, d3.max(filteredData, d => +d[scatterplotYVar]) + 10])
         .range([height, 0]);
     svg.append("g")
         .call(d3.axisLeft(y));
@@ -457,8 +528,8 @@ function renderScatterPlot() {
         .data(filteredData)
         .enter()
         .append("circle")
-            .attr("cx", d => x(+d.audience_score))
-            .attr("cy", d => y(+d.tomato_meter))
+            .attr("cx", d => x(+d[scatterplotXVar]))
+            .attr("cy", d => y(+d[scatterplotYVar]))
             .attr("r", 5)
             .style("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
@@ -485,13 +556,19 @@ DRAW BOXPLOT
 function renderBoxPlot() {
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
 
-    filteredData.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
+    if (boxplotSorted === "chronological") {
+        filteredData.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
+    } else if (boxplotSorted === "highest-lowest") {
+        filteredData.sort((a, b) => b[boxplotVar] - a[boxplotVar]);
+    } else if (boxplotSorted === "lowest-highest") {
+        filteredData.sort((a, b) => a[boxplotVar] - b[boxplotVar]);
+    }
 
     const margin = {top: 20, right: 30, bottom: 100, left: 60},
           width = 600 - margin.left - margin.right,
           height = 400 - margin.top - margin.bottom;
 
-    const svg = graphDiv.append("svg")
+    const svg = boxPlotDiv.append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
       .append("g")
@@ -511,7 +588,7 @@ function renderBoxPlot() {
             .attr("transform", "rotate(-65)");
 
     const y = d3.scaleLinear()
-        .domain([0, d3.max(filteredData, d => +d.worldwide_box_office) * 1.1])
+        .domain([0, d3.max(filteredData, d => +d[boxplotVar]) * 1.1])
         .range([height, 0]);
     svg.append("g")
         .call(d3.axisLeft(y));
@@ -538,9 +615,9 @@ function renderBoxPlot() {
         .enter()
         .append("rect")
             .attr("x", d => x(d.movie_title))
-            .attr("y", d => y(+d.worldwide_box_office))
+            .attr("y", d => y(+d[boxplotVar]))
             .attr("width", x.bandwidth())
-            .attr("height", d => height - y(+d.worldwide_box_office))
+            .attr("height", d => height - y(+d[boxplotVar]))
             .attr("fill", "#69b3a2")
             .on("mouseover", function(event, d) {
                 hoveredMovie = d.movie_title;
@@ -563,14 +640,12 @@ function renderBoxPlot() {
 /*----------------------
 UPDATE GRAPHS BASED ON PHASE
 ----------------------*/
-function renderPlot() {
-    graphDiv.selectAll("*").remove();
+function renderPlots() {
+    scatterPlotDiv.selectAll("*").remove();
+    boxPlotDiv.selectAll("*").remove();
 
-    if (selectedGraph === "scatterplot") {
-        renderScatterPlot();
-    } else if (selectedGraph === "boxplot") {
-        renderBoxPlot();
-    }
+    renderScatterPlot();
+    renderBoxPlot();
 }
 
 /*----------------------
