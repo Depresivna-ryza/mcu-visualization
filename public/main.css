@@ -1,9 +1,13 @@
+/* Import Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
 body{
-	background:#767a83;
-	/*margin-top:50px;*/
+	background: #ffffff; /* Changed background to white */
+	font-family: 'Roboto', sans-serif; /* Updated font to Roboto */
+	color: #333333; /* Changed text color to dark gray for better contrast */
+	margin: 20px; /* Added margin for spacing */
 	font: 15px "Trebuchet MS";
 	color:#c0c0c0;
-
 }
 
 
@@ -38,6 +42,10 @@ body{
 
 #graph_div {
     text-align: center;
+    /* padding: 20px;  */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Added subtle shadow */
+    border-radius: 8px; /* Rounded corners */
+    background: #eeeeee; /* Light background for contrast */
 }
 
 .headline, .subline{
@@ -46,46 +54,110 @@ body{
   margin-bottom: 0.67em;
   margin-left: 0;
   margin-right: 0;
-  fill: white;
-  font-family: 'PT Sans',sans-serif;
-  opacity: 0.5;
+  fill: #333333; /* Dark text */
+  font-family: 'Roboto', sans-serif; /* Consistent font */
+  opacity: 1; /* Full opacity for better visibility */
 }
 
 .headline{
-  font-weight: bold;
+  font-weight: 700; /* Bold font */
+  color: #2c3e50; /* Modern dark blue */
 }
 
 .subline{
-  font-size: 50%;
-  font-weight: thin;
+  font-size: 14px; /* Increased font size for readability */
+  color: #7f8c8d; /* Light gray */
 }
 
 .label{
   font-family: 'PT Sans',sans-serif;
   opacity: 1;
   font-size: 30%;
+  color: #34495e; /* Darker label color */
+  font-size: 16px; /* Increased font size */
 }
 
 #side_by_side_flex {
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
+  justify-content: space-around; /* Changed to space-around for better spacing */
+  align-items: center; /* Vertically center align */
+  padding: 20px; /* Added padding */
 }
 
 #list_div {
   flex: 1;
   max-width: 300px;
+  padding: 10px;
+  background: #ecf0f1; /* Light gray background */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Subtle shadow */
 }
 
 #info_div {
   max-width: 500px;
   flex: 2;
   text-align: left;
+  padding: 20px;
+  color: #333333; /* Dark text color */
+  background: #DDDDDD; /* Light gray background */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Subtle shadow */
+  margin-left: 20px; /* Added margin for spacing */
+}
+
+
+h2 {
+  /* color: #088266;  */
+  color: #088266;
+  font-size: 24px; /* Increased font size */
+
 }
 
 #selection_div {
-  border: 1px solid black;
-  padding: 10px;
-  margin: 5px;
-  clear: both;
+  border: none; /* Removed border */
+  padding: 20px; /* Increased padding */
+  margin: 10px; /* Adjusted margin */
+  background: #bdc3c7; /* Subtle background color */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Subtle shadow */
+}
+
+/* Dropdown styling */
+select {
+	padding: 8px 12px; /* Added padding */
+	border: 1px solid #ccc; /* Light border */
+	border-radius: 4px; /* Rounded corners */
+	font-size: 14px; /* Increased font size */
+	margin-right: 10px; /* Added margin */
+	transition: border-color 0.3s ease; /* Smooth transition */
+}
+
+select:focus {
+	border-color: #2980b9; /* Change border color on focus */
+	outline: none; /* Remove default outline */
+}
+
+/* Hover effects for list items */
+#movie_list_div ul li:hover {
+	color: #2980b9; /* Change color on hover */
+	text-decoration: underline; /* Underline on hover */
+	cursor: pointer; /* Pointer cursor on hover */
+}
+
+/* Adjust scatter and bar plot divs */
+#scatter_plot_div, #bar_plot_div {
+	margin: 20px 0; /* Added vertical margin */
+}
+
+/* Additional styling for better layout */
+@media (max-width: 768px) {
+	#side_by_side_flex {
+		flex-direction: column; /* Stack elements vertically on small screens */
+	}
+	
+	#list_div, #info_div {
+		max-width: 100%; /* Full width on small screens */
+		margin-left: 0; /* Remove left margin */
+	}
 }

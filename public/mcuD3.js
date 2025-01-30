@@ -1,5 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
+let selection_color = "#69b3a2";
+
 // Global variables
 let data;
 let networkDiv, infoDiv, graphConfigDiv, graphDiv, scatterPlotDiv, barPlotDiv, movieListDiv;
@@ -53,6 +55,7 @@ INITIALIZE GRAPH CONFIGURATION
 function initGraphConfig() {
     // Add dropdowns for scatterplot variables
     const scatterplotVars = ["tomato_meter", "audience_score", "movie_duration", "production_budget", "opening_weekend", "domestic_box_office", "worldwide_box_office"];
+
 
     const scatterplotConfigDiv = graphConfigDiv.append("div").attr("id", "scatterplotConfig").style("width", "50%").style("display", "inline-block");
 
@@ -159,11 +162,14 @@ function renderMovieList() {
         // Phase Header
         const phaseHeader = movieListDiv.append("h3")
             .text(`Phase ${phase}`)
-            .style("cursor", "pointer");
+            .style("color", "#333333")
 
         // Select All label
         phaseHeader.append("span")
             .text(" (select all)")
+            .style("font-size", "12px")
+            .style("color", "#666666")
+            .style("font-style", "italic")
             .style("cursor", "pointer")
             .style("margin-left", "10px")
             .on("click", () => togglePhaseSelection(phase));
@@ -186,8 +192,10 @@ function renderMovieList() {
                     hoveredMovie = null;
                     updateHoveredMovie();
                 })
-                .style("color", movie === hoveredMovie ? "orange" : movieSelection.includes(movie) ? "green" : "blue");
+                // .style("color", movie === hoveredMovie ? "orange" : movieSelection.includes(movie) ? "green" : "blue");
         });
+
+        updateHoveredMovie();
     });
 }
 
@@ -239,7 +247,9 @@ function updateHoveredMovie() {
         node.attr("opacity", n => (n.id === hoveredMovie || neighbors.includes(n.id)) ? 1 : 0.2);
         
         // Update link opacity
-        link.attr("opacity", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie) ? 1 : 0.2);
+        link.attr("opacity", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie) ? 1 : 0); 
+
+        link.attr("stroke-width", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie) ? 6 : 2);
 
         // Update node colors
         
@@ -267,11 +277,11 @@ function updateHoveredMovie() {
         }
 
         scatterPlotDiv.selectAll("circle")
-            .attr("r", d => d.movie_title === hoveredMovie ? 15 : 5)
-            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
+            .attr("r", d => d.movie_title === hoveredMovie ? 10 : 6)
+            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : selection_color);
 
         barPlotDiv.selectAll("rect")
-            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : "#69b3a2");
+            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : selection_color);
 
     } else {
         // Reset node opacity and colors
@@ -291,14 +301,19 @@ function updateHoveredMovie() {
         link.attr("opacity", 1)
             .attr("stroke", "#999"); 
 
-        infoDiv.html(`<h2>Hover over a movie node to see details here.</h2>`);
+        link.attr("stroke-width", 2);
+
+
+        infoDiv.selectAll("*").remove();
+        infoDiv.append("h1").text("Marvel Cinematic Universe visualization:").style("color", "#222222");
+        infoDiv.append("h2").text("Hover over a movie node to see details here.").style("color", "#555555");
 
         scatterPlotDiv.selectAll("circle")
-            .attr("r", 5)
-            .style("fill", "#69b3a2");
+            .attr("r", 6)
+            .style("fill", selection_color);
 
         barPlotDiv.selectAll("rect")
-            .style("fill", "#69b3a2");
+            .style("fill", selection_color);
     }
 
     var lis = document.getElementsByTagName("li");  
@@ -306,9 +321,10 @@ function updateHoveredMovie() {
         if (lis[i].textContent === hoveredMovie) {
             lis[i].style.color = "orange";
         } else if (movieSelection.includes(lis[i].textContent)) {
-            lis[i].style.color = "green";
+            lis[i].style.color = "#088266";
+            lis[i].style.fontWeight = "bold";
         } else {
-            lis[i].style.color = "blue";
+            lis[i].style.color = "gray";
         }
     }
 }
@@ -461,7 +477,7 @@ function renderNetworkGraph() {
                 .attr("id", "hoveredText")
                 .attr("x", d.x )
                 .attr("y", d.y - 2 * r)
-                .attr("fill", "white")
+                .attr("fill", "#333333")
                 .attr("text-anchor", "middle")
                 .attr("font-size", "16px")
                 .attr("font-weight", "bold")
@@ -539,7 +555,7 @@ function renderScatterPlot() {
     // Y Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        // .attr("y", -margin.left + 25) // shifted further to avoid overlap
+        .attr("y", -margin.left ) // shifted further to avoid overlap
         .attr("x", -plotHeight / 2)
         .attr("dy", "1em")
         .style("text-anchor", "middle")
@@ -554,8 +570,8 @@ function renderScatterPlot() {
         .append("circle")
             .attr("cx", d => x(+d[scatterplotXVar]))
             .attr("cy", d => y(+d[scatterplotYVar]))
-            .attr("r", 5)
-            .style("fill", "#69b3a2")
+            .attr("r", 6)
+            .style("fill", selection_color)
             .on("mouseover", function(event, d) {
                 hoveredMovie = d.movie_title;
                 updateHoveredMovie();
@@ -621,7 +637,7 @@ function renderBarPlot() {
             .style("text-anchor", "end")
             .attr("dx", "-0.8em")
             .attr("dy", "-0.15em")
-            .attr("transform", "rotate(-65)");
+            .attr("transform", "rotate(-15)");
 
     // Y Scale
     const y = d3.scaleLinear()
@@ -659,7 +675,7 @@ function renderBarPlot() {
             .attr("y", d => y(+d[barplotVar]))
             .attr("width", x.bandwidth())
             .attr("height", d => plotHeight - y(+d[barplotVar]))
-            .attr("fill", "#69b3a2")
+            .attr("fill", selection_color)
             .on("mouseover", function(event, d) {
                 hoveredMovie = d.movie_title;
                 updateHoveredMovie();
@@ -721,9 +737,9 @@ function getMoviesByPhase(phase) {
 
 function getNodeColor(d) {
     if (d.group === "movie") {
-        return movieSelection.includes(d.id) ? "green" : "blue";
+        return selection_color
     }
-    return "red";
+    return "#333333";
 }
 
 function getFriendlyVarName(varName, inMillions = false) {
