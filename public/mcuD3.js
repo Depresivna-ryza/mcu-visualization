@@ -7,7 +7,8 @@ let data;
 let networkDiv, infoDiv, graphConfigDiv, graphDiv, scatterPlotDiv, barPlotDiv, movieListDiv;
 
 let movieSelection = [];
-let hoveredMovie = null;
+let hoveredMovies = [];
+let hoveredCharacter = null;
 
 let nodes = [];
 let links = [];
@@ -185,11 +186,11 @@ function renderMovieList() {
                 .style("cursor", "pointer")
                 .on("click", () => toggleMovieSelection(movie))
                 .on("mouseover", () => {
-                    hoveredMovie = movie;
+                    hoveredMovies = [movie];
                     updateHoveredMovie();
                 })
                 .on("mouseleave", () => {
-                    hoveredMovie = null;
+                    hoveredMovies = [];
                     updateHoveredMovie();
                 })
                 // .style("color", movie === hoveredMovie ? "orange" : movieSelection.includes(movie) ? "green" : "blue");
@@ -239,49 +240,57 @@ function updateNodeColors() {
 function updateHoveredMovie() {
     let node = networkDiv.selectAll("circle");
     let link = networkDiv.selectAll("line");
-    let neighbors = adjacency[hoveredMovie] || [];
 
-    if (hoveredMovie) {
-        
-        // Update node opacity
-        node.attr("opacity", n => (n.id === hoveredMovie || neighbors.includes(n.id)) ? 1 : 0.2);
-        
-        // Update link opacity
-        link.attr("opacity", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie) ? 1 : 0); 
+    // Collect neighbors of all hoveredMovies
+    let allNeighbors = [];
+    hoveredMovies.forEach(m => {
+        allNeighbors = allNeighbors.concat(adjacency[m] || []);
+    });
 
-        link.attr("stroke-width", l => (l.source.id === hoveredMovie || l.target.id === hoveredMovie) ? 6 : 2);
-
-        // Update node colors
-        
-        updateNodeColors();
-        
-        node.attr("fill", d => {
-            if (d.id === hoveredMovie || neighbors.includes(d.id)) {
-                return "orange";
+    if (hoveredMovies.length > 0 || hoveredCharacter) {
+        node.attr("opacity", n => {
+            if (hoveredCharacter) {
+                return (n.id === hoveredCharacter || hoveredMovies.includes(n.id)) ? 1 : 0.2;
             }
-            return getNodeColor(d);
+            return (hoveredMovies.includes(n.id) || allNeighbors.includes(n.id)) ? 1 : 0.2;
+        })
+        .attr("fill", d => {
+            if (hoveredCharacter) {
+                return (d.id === hoveredCharacter || hoveredMovies.includes(d.id)) ? "orange" : getNodeColor(d);
+            }
+            return hoveredMovies.includes(d.id) || allNeighbors.includes(d.id) ? "orange" : getNodeColor(d);
         });
 
-        // Update link colors
-        link.attr("stroke", l => {
-            if (l.source.id === hoveredMovie || l.target.id === hoveredMovie) {
-                return "orange"; // Links connected to hovered node
-            } else {
-                return "#999"; // Default link color
+        link.attr("opacity", l => {
+            if (hoveredCharacter) {
+                return l.source.id === hoveredCharacter || l.target.id === hoveredCharacter ? 1 : 0;
             }
+            return hoveredMovies.includes(l.source.id) || hoveredMovies.includes(l.target.id) ? 1 : 0;
+        })
+        .attr("stroke-width", l => {
+            if (hoveredCharacter) {
+                return l.source.id === hoveredCharacter || l.target.id === hoveredCharacter ? 6 : 2;
+            }
+            return hoveredMovies.includes(l.source.id) || hoveredMovies.includes(l.target.id) ? 6 : 2;
+        })
+        .attr("stroke", l => {
+            if (hoveredCharacter) {
+                return l.source.id === hoveredCharacter || l.target.id === hoveredCharacter ? "orange" : "#999";
+            }
+            return (hoveredMovies.includes(l.source.id) || hoveredMovies.includes(l.target.id)) ? "orange" : "#999";
         });
 
-        const movieData = data.find(movie => movie.movie_title === hoveredMovie);
+        const movieData = data.find(movie => hoveredMovies.includes(movie.movie_title));
         if (movieData) {
             displayMovieInfo(movieData);
         }
 
         scatterPlotDiv.selectAll("circle")
-            .attr("r", d => d.movie_title === hoveredMovie ? 10 : 6)
-            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : selection_color);
+            .attr("r", d => hoveredMovies.includes(d.movie_title) ? 10 : 6)
+            .style("fill", d => hoveredMovies.includes(d.movie_title) ? "orange" : selection_color);
 
         barPlotDiv.selectAll("rect")
-            .style("fill", d => d.movie_title === hoveredMovie ? "orange" : selection_color);
+            .style("fill", d => hoveredMovies.includes(d.movie_title) ? "orange" : selection_color);
 
     } else {
         // Reset node opacity and colors
@@ -291,7 +300,7 @@ function updateHoveredMovie() {
         updateNodeColors();
     
         node.attr("fill", d => {
-            if (d.id === hoveredMovie || neighbors.includes(d.id)) {
+            if (hoveredMovies.includes(d.id) || allNeighbors.includes(d.id)) {
                 return "orange";
             }
             return getNodeColor(d);
@@ -318,7 +327,7 @@ function updateHoveredMovie() {
 
     var lis = document.getElementsByTagName("li");  
     for (var i = 0; i < lis.length; i++) {
-        if (lis[i].textContent === hoveredMovie) {
+        if (hoveredMovies.includes(lis[i].textContent)) {
             lis[i].style.color = "orange";
         } else if (movieSelection.includes(lis[i].textContent)) {
             lis[i].style.color = "#088266";
@@ -495,7 +504,15 @@ function renderNetworkGraph() {
 
         // Add interactivity: Highlight adjacent nodes on hover and update infoDiv
         node.on("mouseover", function(event, d) {
-            hoveredMovie = d.id;
+            if (d.group === "movie") {
+                hoveredCharacter = null;
+                hoveredMovies = [d.id];
+            } else {
+                hoveredCharacter = d.id;
+                hoveredMovies = adjacency[d.id]
+                    ? adjacency[d.id].filter(n => nodes.find(nd => nd.id === n && nd.group === "movie"))
+                    : [];
+            }
             updateHoveredMovie();
 
             let r = d.group === "movie" ? 2 * radius : 0.8 * radius;
@@ -513,7 +530,8 @@ function renderNetworkGraph() {
         });
 
         node.on("mouseout", function() {
-            hoveredMovie = null;
+            hoveredMovies = [];
+            hoveredCharacter = null;
             updateHoveredMovie();
 
             // Remove the displayed text
@@ -600,11 +618,11 @@ function renderScatterPlot() {
             .attr("r", 6)
             .style("fill", selection_color)
             .on("mouseover", function(event, d) {
-                hoveredMovie = d.movie_title;
+                hoveredMovies = [d.movie_title];
                 updateHoveredMovie();
             })
             .on("mouseout", function() {
-                hoveredMovie = null;
+                hoveredMovies = [];
                 updateHoveredMovie();
             });
 
@@ -704,11 +722,11 @@ function renderBarPlot() {
             .attr("height", d => plotHeight - y(+d[barplotVar]))
             .attr("fill", selection_color)
             .on("mouseover", function(event, d) {
-                hoveredMovie = d.movie_title;
+                hoveredMovies = [d.movie_title];
                 updateHoveredMovie();
             })
             .on("mouseout", function() {
-                hoveredMovie = null;
+                hoveredMovies = [];
                 updateHoveredMovie();
             });
 
