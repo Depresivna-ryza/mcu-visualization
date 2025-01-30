@@ -42,6 +42,14 @@ function init() {
     scatterPlotDiv = graphDiv.append("div").attr("id", "scatter_plot_div").style("width", "50%").style("vertical-align", "top").style("display", "inline-block");
     barPlotDiv = graphDiv.append("div").attr("id", "bar_plot_div").style("width", "50%").style("vertical-align", "top").style("horizontal-align", "middle").style("display", "inline-block");
 
+    //Initialize selection of movies to the first phase + some movies from phase 2
+    movieSelection = getMoviesByPhase(1);
+    movieSelection.push("Iron Man 3");
+    movieSelection.push("Thor: The Dark World");
+    movieSelection.push("Captain America: The Winter Soldier");
+    movieSelection.push("Avengers: Age of Ultron");
+    movieSelection.push("Captain America: Civil War");
+
     // Initialize Graph Configuration
     initGraphConfig();
 
@@ -193,7 +201,6 @@ function renderMovieList() {
                     hoveredMovies = [];
                     updateHoveredMovie();
                 })
-                // .style("color", movie === hoveredMovie ? "orange" : movieSelection.includes(movie) ? "green" : "blue");
         });
 
         updateHoveredMovie();
@@ -415,13 +422,6 @@ function renderNetworkGraph() {
             }
 
             return baseValue * (1 + neighbourModifier);
-
-            // if (d.group === "movie") {
-            //     // return 25
-            //     return (25 + neighbors/maxNeighbors * 25) * (200/(200 + totalNodes));
-            // }
-            // // return 10
-            // return (10 + neighbors/maxNeighbors * 10 * 3) *(200/(200 + totalNodes)) ;
         }
 
         const svg = networkDiv.append("svg")
@@ -538,8 +538,28 @@ function renderNetworkGraph() {
             svg.select("#hoveredText").remove();
         });
 
+        // Add helper function to remove adjacent movies when a character is clicked
+        function removeAdjacentMovies(character) {
+            const adjacentMovies = adjacency[character] || [];
+            adjacentMovies.forEach(movie => {
+                const index = movieSelection.indexOf(movie);
+                if (index > -1) {
+                    movieSelection.splice(index, 1);
+                }
+            });
+            updateNodeColors();
+            renderMovieList();
+            renderPlots();
+            renderNetworkGraph();
+        }
+
+        // Modify the node click handler to handle both movies and characters
         node.on("click", function(event, d) {
-            toggleMovieSelection(d.id);
+            if (d.group === "character") {
+                removeAdjacentMovies(d.id);
+            } else if (d.group === "movie") {
+                toggleMovieSelection(d.id);
+            }
         });
     });
 }
@@ -624,6 +644,9 @@ function renderScatterPlot() {
             .on("mouseout", function() {
                 hoveredMovies = [];
                 updateHoveredMovie();
+            })
+            .on("click", function(event, d) {
+                toggleMovieSelection(d.movie_title);
             });
 
     // Title for Scatterplot
@@ -675,6 +698,7 @@ function renderBarPlot() {
         .range([0, plotWidth])
         .domain(filteredData.map(d => d.movie_title))
         .padding(0.2);
+
     svg.append("g")
         .attr("transform", `translate(0,${plotHeight})`)
         .call(d3.axisBottom(x))
@@ -725,9 +749,15 @@ function renderBarPlot() {
                 hoveredMovies = [d.movie_title];
                 updateHoveredMovie();
             })
+
             .on("mouseout", function() {
                 hoveredMovies = [];
                 updateHoveredMovie();
+
+                tooltip.transition().duration(200).style("opacity", 0);
+            })
+            .on("click", function(event, d) {
+                toggleMovieSelection(d.movie_title);
             });
 
     // Title for Barplot
@@ -788,7 +818,6 @@ function getNodeColor(d) {
 }
 
 function getFriendlyVarName(varName, inMillions = false) {
-    // Simple mapping - adjust as needed
     const map = {
         "audience_score": "Audience Score (%)",
         "tomato_meter": "Critics Score (%)",
