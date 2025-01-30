@@ -388,6 +388,33 @@ function renderNetworkGraph() {
             adjacency[l.target].push(l.source);
         });
 
+        const maxNeighbors = Math.max(...nodes.map(n => adjacency[n.id].length));
+        const totalNodes = nodes.length;
+
+        function getNodeRadius(d) {
+            let neighbors = adjacency[d.id] ? adjacency[d.id].length : 0;
+
+            let baseValue = (200/(200 + totalNodes)) * radius ;
+            if (d.group === "movie") {
+                baseValue *= 2;
+            }
+
+            let neighbourModifier = neighbors/maxNeighbors * 2;
+
+            if (d.group === "character") {
+                neighbourModifier *= 1.5;
+            }
+
+            return baseValue * (1 + neighbourModifier);
+
+            // if (d.group === "movie") {
+            //     // return 25
+            //     return (25 + neighbors/maxNeighbors * 25) * (200/(200 + totalNodes));
+            // }
+            // // return 10
+            // return (10 + neighbors/maxNeighbors * 10 * 3) *(200/(200 + totalNodes)) ;
+        }
+
         const svg = networkDiv.append("svg")
             .attr("width", width)
             .attr("height", height);
@@ -399,7 +426,7 @@ function renderNetworkGraph() {
                 .strength(d => d.group === "movie" ? 50 : -50))
             .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
             .force("collide", d3.forceCollide()
-                .radius(d => d.group === "movie" ? 3 * radius : 1.5 * radius)
+                .radius(d => getNodeRadius(d) * (d.group === "movie" ? 1.2 : 1.1))
                 .strength(1))
             .force("radial", 
                 d3.forceRadial(d => d.group === "movie" ? 0 : Math.min(width, height) / 2 , width / 2, height / 2)
@@ -453,7 +480,7 @@ function renderNetworkGraph() {
             .data(nodes)
             .enter()
             .append("circle")
-            .attr("r", d => d.group === "movie" ? 2.5 * radius : radius)
+            .attr("r", d => getNodeRadius(d))
             .attr("fill", d => getNodeColor(d))
             .attr("cx", d => clamp(d.x, radius, width - radius))
             .attr("cy", d => clamp(d.y, radius, height - radius))
