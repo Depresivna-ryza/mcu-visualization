@@ -163,17 +163,15 @@ RENDER MOVIE LIST
 ----------------------*/
 function renderMovieList() {
     movieListDiv = d3.select("#movie_list_div");
-    movieListDiv.selectAll("*").remove(); // Clear existing content
+    movieListDiv.selectAll("*").remove();
 
     const phases = [1, 2, 3, 4];
 
     phases.forEach(phase => {
-        // Phase Header
         const phaseHeader = movieListDiv.append("h3")
             .text(`Phase ${phase}`)
             .style("color", "#333333")
 
-        // Select All label
         phaseHeader.append("span")
             .text(" (select all)")
             .style("font-size", "12px")
@@ -182,8 +180,6 @@ function renderMovieList() {
             .style("cursor", "pointer")
             .style("margin-left", "10px")
             .on("click", () => togglePhaseSelection(phase));
-
-        // Movie List
         const movieList = movieListDiv.append("ul")
             .attr("id", `phase_${phase}_list`);
 
@@ -322,7 +318,8 @@ function updateHoveredMovie() {
 
         infoDiv.selectAll("*").remove();
         infoDiv.append("h1").text("Marvel Cinematic Universe visualization:").style("color", "#222222");
-        infoDiv.append("h2").text("Hover over a movie node to see details here.").style("color", "#555555");
+        infoDiv.append("h2").text("Hover over a movie to see details here.").style("color", "#555555");
+        infoDiv.append("h3").text("(or click to select / deselect)").style("color", "#555555");
 
         scatterPlotDiv.selectAll("circle")
             .attr("r", 6)
@@ -349,14 +346,12 @@ function updateHoveredMovie() {
 DRAW NETWORK GRAPH
 ----------------------*/
 function renderNetworkGraph() {
-    // Remove existing SVG if any
     networkDiv.select("svg").remove();
 
-    // Load nodes and edges in parallel
     Promise.all([
-        d3.csv("./public/movies_characters_list.csv"),        // contains name, type
-        d3.csv("./public/movies_characters_occurences.csv"),  // contains movie, character
-        d3.csv("./public/movie_stats.csv")                    // contains movie_title, phase
+        d3.csv("./public/movies_characters_list.csv"),        
+        d3.csv("./public/movies_characters_occurences.csv"),  
+        d3.csv("./public/movie_stats.csv")                   
     ]).then(([listData, edgesData, statsData]) => {
 
         let filteredMovies;
@@ -502,7 +497,7 @@ function renderNetworkGraph() {
         node.append("title")
             .text(d => d.id);
 
-        // Add interactivity: Highlight adjacent nodes on hover and update infoDiv
+        // Highlight adjacent nodes on hover and update infoDiv
         node.on("mouseover", function(event, d) {
             if (d.group === "movie") {
                 hoveredCharacter = null;
@@ -538,7 +533,7 @@ function renderNetworkGraph() {
             svg.select("#hoveredText").remove();
         });
 
-        // Add helper function to remove adjacent movies when a character is clicked
+        // elper function to remove adjacent movies when a character is clicked
         function removeAdjacentMovies(character) {
             const adjacentMovies = adjacency[character] || [];
             adjacentMovies.forEach(movie => {
@@ -553,7 +548,7 @@ function renderNetworkGraph() {
             renderNetworkGraph();
         }
 
-        // Modify the node click handler to handle both movies and characters
+        // click handler to handle movies and characters
         node.on("click", function(event, d) {
             if (d.group === "character") {
                 removeAdjacentMovies(d.id);
@@ -568,7 +563,6 @@ function renderNetworkGraph() {
 DRAW SCATTERPLOT
 ----------------------*/
 function renderScatterPlot() {
-    // Clear existing SVG if any
     scatterPlotDiv.select("svg").remove();
 
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
@@ -663,7 +657,6 @@ function renderScatterPlot() {
 DRAW BARPLOT
 ----------------------*/
 function renderBarPlot() {
-    // Clear existing SVG if any
     barPlotDiv.select("svg").remove();
 
     let filteredData = data.filter(d => movieSelection.includes(d.movie_title));
