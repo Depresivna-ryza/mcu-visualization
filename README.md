@@ -2,7 +2,14 @@
 
 A dynamic visualization of Marvel Cinematic Universe movies using D3.js.
 
+
+Focus is on creating a multiple linked visualizations with interactions.
+
 Hosted [HERE!](https://mcu-visualization.onrender.com/)
+
+
+https://github.com/user-attachments/assets/319a5d6b-6ec6-4db0-afa8-fd60cc7e1e2c
+
 
 ## Verification
 
